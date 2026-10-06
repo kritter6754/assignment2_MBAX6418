@@ -1,0 +1,19 @@
+# --- secrets (never commit credentials) ---
+.env
+*.key
+
+# --- local data: course files, page images, indexes, saved quizzes ---
+data/
+course_files/
+
+# --- python ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- os / editor ---
+.DS_Store
+.idea/
+.vscode/
+.gradio/
