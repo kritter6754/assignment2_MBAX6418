@@ -1,0 +1,1529 @@
+{
+ "timestamp": "2026-10-06 11:41",
+ "n_questions": 35,
+ "counts": {
+  "text": 20,
+  "visual": 9,
+  "unanswerable": 6
+ },
+ "retrieval": {
+  "hybrid": {
+   "all": {
+    "n": 29,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "text": {
+    "n": 20,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "visual": {
+    "n": 9,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "rank": 1
+    }
+   ]
+  },
+  "hybrid_no_rerank": {
+   "all": {
+    "n": 29,
+    "hit@1": 0.896551724137931,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 0.9425287356321839
+   },
+   "text": {
+    "n": 20,
+    "hit@1": 0.9,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 0.95
+   },
+   "visual": {
+    "n": 9,
+    "hit@1": 0.8888888888888888,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 0.925925925925926
+   },
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "rank": 2
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "rank": 2
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "rank": 3
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "rank": 1
+    }
+   ]
+  },
+  "text_vector": {
+   "all": {
+    "n": 29,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "text": {
+    "n": 20,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "visual": {
+    "n": 9,
+    "hit@1": 1.0,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 1.0
+   },
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "rank": 1
+    }
+   ]
+  },
+  "keyword": {
+   "all": {
+    "n": 29,
+    "hit@1": 0.8275862068965517,
+    "hit@3": 0.9655172413793104,
+    "hit@8": 1.0,
+    "mrr": 0.903448275862069
+   },
+   "text": {
+    "n": 20,
+    "hit@1": 0.85,
+    "hit@3": 1.0,
+    "hit@8": 1.0,
+    "mrr": 0.925
+   },
+   "visual": {
+    "n": 9,
+    "hit@1": 0.7777777777777778,
+    "hit@3": 0.8888888888888888,
+    "hit@8": 1.0,
+    "mrr": 0.8555555555555556
+   },
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "rank": 2
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "rank": 2
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "rank": 1
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "rank": 2
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "rank": 2
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "rank": 5
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "rank": 1
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "rank": 1
+    }
+   ]
+  }
+ },
+ "end_to_end": {
+  "hybrid": {
+   "answered_correct_source": 1.0,
+   "visual_answered_correct_source": 1.0,
+   "answerable_marked_not_found": 0.0,
+   "partially_supported": 0,
+   "abstained_correctly": 1.0,
+   "false_answers": 0,
+   "dropped_citations_total": 0,
+   "median_seconds": 2.3,
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.6,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 11"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The tradeoff of using a KV cache is increased memory demands [S1]."
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.3,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 15"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "When quantized to 4 bits, the Qwen3-Coder-30B-A3B-Instruct model requires approximately 17GB of memory [S1]."
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.5,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 17"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A Mixture of Experts (MoE) model consists of several mini-models or \"experts\" [S1]. Only some \"active\" experts will respond to a particular input [S1]. This architecture can result in performance that is significantly faster (in tokens/sec) than a \"dense\" model [S1]."
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 10"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Time-to-first-token (TTFT) is a metric used to measure the speed of the prefill phase, or prompt processing, which occurs when input tokens are processed [S1]."
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.0,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 16"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "For Apple M chips, the recommended quantization formats are MLX and oQ+ [S1]."
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 12"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "In a long agentic session, prefix caching allows the model to reuse the KV cache for the previous tokens (e.g., 100K tokens) and process only the new tokens (e.g., 1K tokens) from the new message, leading to significantly lower Time To First Token (TTFT) [S1]."
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "status": "answered",
+     "seconds": 3.5,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 20"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The claim that few-shot prompting offers many examples is supported by the course materials. The materials state that few-shot prompting offers \"many examples\" [S1]."
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.3,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 22"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "You should consider using structured outputs when adherence to a specific format is key, such as in classification tasks or for downstream use [S1]. This is because simply prompting a model to answer a specific way does not guarantee adherence [S1]."
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 30"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The HERMES.md file has the highest priority among Hermes context files [S1]."
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.3,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 32"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Hermes stores the user profile in USER.md, which includes your preferences, communication style, and expectations [S1]."
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "status": "answered",
+     "seconds": 3.2,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The ChatML format uses the special tokens `<|im_start|>` and `<|im_end|>` [S3]."
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A Gradio app uses port 7860 by default [S1]."
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 16"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A useful bug report should answer the following key questions: What is the problem? Where in the app does it happen? What did you expect to happen? What actually happened? How do you reproduce it? [S1]."
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 23"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A commit message summary should be 50 characters or fewer [S1]."
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.9,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The Lost in the Middle (LITM) effect is a phenomenon where the accuracy of Large Language Models (LLMs) drops when relevant facts are located in the middle of the input context [S1]. This results in a U-shaped performance curve, where models perform better at the beginning (primacy bias) or end (recency bias) of the context, but performance degrades significantly when information is in the middle [S1]."
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.5,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 17"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Common chunking strategies for RAG include fixed size, recursive, document-based, and semantic chunking [S1]."
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.8,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 19"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The MTEB Leaderboard is suggested for shortlisting retrieval models [S1]."
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 10"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Speaker diarization is a process that labels who spoke when, such as distinguishing between \"Speaker 1\" and \"Speaker 2\" [S1]."
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.5,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 19"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "OmniVoice has a licensing issue where its code and weights have different licenses. Specifically, it has Apache 2.0 code but noncommercial weights (CC-BY-NC) [S1]."
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.5,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 13"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The model given as an example for text-to-image generation and image editing is FLUX.2-klein-4B [S1]."
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 5"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The areas shown inside context engineering are RAG, Prompt Engineering, State / History, Memory, and Structured Outputs [S1]."
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.9,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 6"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The step that selects which possible context goes into the agent's context window is called \"Curation\" [S1]."
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.1,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 18"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "According to the Lee & Palmer framework, the first step when writing a prompt is to define the role by explaining to the AI agent who it is [S1]."
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.3,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 23"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Chain-of-Thought Prompting (CoT) is described as a method where \"The AI should slowly elaborate on how a given response is generated\" [S1]."
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 29"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "According to the Google Trends chart, the search term 'Vibe Coding' overtook 'Learn to Code' [S1]."
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.9,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 31"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Hermes' docs provide six best practices for AGENTS.md files: 1) Keep it concise and stay under the configured `context_file_max_chars` limit [S1]. 2) Structure the file with headers using `##` sections for architecture, conventions, and important notes [S1]. 3) Include concrete examples such as preferred code patterns, API shapes, and naming conventions [S1]. 4) Mention what NOT to do, for example, stating \"never modify migration files directly\" [S1]. 5) List key paths and ports, as the agent uses these for terminal commands [S1]. 6) Update the file as the project evolves, because stale context is worse than no context [S1]."
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 16"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "In the diagram for preparing documents for search, the step that comes right after the Document Chunker is \"Chunks + Metadata\" [S1]."
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 18"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "In the hybrid RAG pipeline diagram, the reranker outputs \"Ranked Chunks With Source Details\" [S1]."
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 2.2,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 34"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The person who built their SaaS with Cursor and zero hand-written code reported being \"under attack\" after sharing their method publicly. They experienced issues such as maxed-out API key usage, people bypassing their subscription, and random data being created in their database [S1]."
+    },
+    {
+     "id": "u01",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.6,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain the answer to what the capital of Australia is."
+    },
+    {
+     "id": "u02",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.5,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the final exam date for MBAX 6418."
+    },
+    {
+     "id": "u03",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.6,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the late-submission policy for assignments."
+    },
+    {
+     "id": "u04",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.9,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided materials do not explain how LoRA fine-tuning works. They mention fine-tuning as a method to adapt the model itself through additional training [S1], [S3], and note that NVIDIA's CUDA is unparalleled for training or fine-tuning [S7], but they do not describe the LoRA technique."
+    },
+    {
+     "id": "u05",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.4,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided materials do not contain information about which team won the Week 5 class exercise."
+    },
+    {
+     "id": "u06",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.7,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the number of GPUs used to train the Qwen3.6-35B-A3B model."
+    }
+   ]
+  },
+  "text_vector": {
+   "answered_correct_source": 0.9310344827586207,
+   "visual_answered_correct_source": 0.7777777777777778,
+   "answerable_marked_not_found": 0.06896551724137931,
+   "partially_supported": 2,
+   "abstained_correctly": 1.0,
+   "false_answers": 0,
+   "dropped_citations_total": 0,
+   "median_seconds": 1.3,
+   "per_question": [
+    {
+     "id": "t01",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.0,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 11"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The tradeoff of using a KV cache is increased memory demands [S1]."
+    },
+    {
+     "id": "t02",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.2,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 15"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The Qwen3-Coder-30B-A3B-Instruct model requires approximately 17GB of memory when quantized to 4 bits [S1]."
+    },
+    {
+     "id": "t03",
+     "type": "text",
+     "status": "partially_supported",
+     "seconds": 3.4,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 17"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A Mixture of Experts (MoE) model consists of several mini-models or \"experts\" [S1]. For a particular input, only some of these \"active\" experts will respond [S1]. This architecture can result in performance that is significantly faster (in tokens/sec) than a \"dense\" model [S1]."
+    },
+    {
+     "id": "t04",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.3,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 10"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Time-to-first-token (TTFT) is a metric used to measure the first phase of model inference, known as prefill or prompt processing, which occurs when input tokens are processed [S1]."
+    },
+    {
+     "id": "t05",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.5,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 16"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "For Apple M chips, the recommended quantization formats are MLX and oQ+ [S1]. Additionally, GGUF formats (such as Q4_K_M) are supported for CPU+GPU setups, which include Apple M chips [S1]."
+    },
+    {
+     "id": "t06",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.4,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 12"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "In a long agentic session, prefix caching allows the model to reuse the KV cache for the previous tokens in the conversation. This means the model only needs to process the new tokens from the latest message, rather than reprocessing the entire conversation history, which significantly lowers the Time to First Token (TTFT) [S1]."
+    },
+    {
+     "id": "t07",
+     "type": "text",
+     "status": "partially_supported",
+     "seconds": 2.5,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 20"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Zero-shot prompting provides no examples when asking for a response, whereas few-shot prompting offers many examples [S1]."
+    },
+    {
+     "id": "t08",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.6,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 22"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "You should consider using structured outputs when adherence to a specific format is key, such as in classification tasks or when the output is intended for downstream use [S1]."
+    },
+    {
+     "id": "t09",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.3,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 30"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The HERMES.md file has the highest priority among Hermes context files [S1]."
+    },
+    {
+     "id": "t10",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.6,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 32"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Hermes stores the user profile in USER.md, which includes your preferences, communication style, and expectations [S1]."
+    },
+    {
+     "id": "t11",
+     "type": "text",
+     "status": "answered",
+     "seconds": 2.4,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The ChatML format uses the special tokens `<|im_start|>` and `<|im_end|>` [S1]."
+    },
+    {
+     "id": "t12",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.0,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A Gradio app uses port 7860 by default [S1]."
+    },
+    {
+     "id": "t13",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.5,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 16"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A useful bug report should answer the following key questions: What is the problem? Where in the app does it happen? What did you expect to happen? What actually happened? How do you reproduce it? [S1]. Additionally, it should address supporting evidence questions such as: Was there an error message? Can you provide a screenshot? Does it happen every time or only sometimes? [S1]."
+    },
+    {
+     "id": "t14",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.0,
+     "sources": [
+      "MBAX 6418 - Week 4 - Serving and Debugging v6.pptx | Slide 23"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "A commit message summary should be 50 characters or fewer [S1]."
+    },
+    {
+     "id": "t15",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.8,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 7"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The Lost in the Middle (LITM) effect is a phenomenon where an LLM's accuracy drops when relevant facts are located in the middle of its input context [S1]. This results in a U-shaped performance curve, where models perform better at the beginning (primacy bias) or end (recency bias) of the context, but performance degrades significantly when information is in the middle [S1]."
+    },
+    {
+     "id": "t16",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.4,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 17"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Common chunking strategies for RAG include fixed size, recursive, document-based, and semantic chunking [S1]."
+    },
+    {
+     "id": "t17",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.4,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 19"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The MTEB Leaderboard is suggested for shortlisting retrieval models [S1]."
+    },
+    {
+     "id": "t18",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.3,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 10"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Speaker diarization is a process that labels who spoke when, such as distinguishing between \"Speaker 1\" and \"Speaker 2\" [S1]."
+    },
+    {
+     "id": "t19",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.7,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 19"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "OmniVoice has a licensing issue where the code and weights have different licenses: the code is under the Apache 2.0 license, but the weights are under a noncommercial license (CC-BY-NC) [S1]."
+    },
+    {
+     "id": "t20",
+     "type": "text",
+     "status": "answered",
+     "seconds": 1.2,
+     "sources": [
+      "MBAX 6418 - Week 6 - Multimodal Generative AI v1.pptx | Slide 13"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The model given as an example for text-to-image generation and image editing is FLUX.2-klein-4B [S1]."
+    },
+    {
+     "id": "v01",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.2,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 5"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The areas shown inside the context engineering diagram are RAG, Prompt Engineering, State / History, Memory, and Structured Outputs [S1]."
+    },
+    {
+     "id": "v02",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.1,
+     "sources": [
+      "MBAX 6418 - Week 5 - Context Engineering and RAG v1.pptx | Slide 6"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The step that selects which possible context goes into the agent's context window is called Curation [S1]."
+    },
+    {
+     "id": "v03",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.7,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 18"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "According to the Lee & Palmer framework, the first step when writing a prompt is to define the role by explaining to the AI agent who it is [S1]."
+    },
+    {
+     "id": "v04",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.4,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 23"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Chain-of-Thought Prompting (CoT) is described as a method where the AI should slowly elaborate on how a given response is generated [S1]."
+    },
+    {
+     "id": "v05",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.4,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 29"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "According to the Google Trends chart, the search term 'Vibe Coding' overtook 'Learn to Code' [S1]."
+    },
+    {
+     "id": "v06",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.9,
+     "sources": [
+      "MBAX 6418 - Week 3 - Prompt Engineering v1.pptx | Slide 31"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "Hermes' docs provide the following best practices for AGENTS.md files: keep it concise (stay under the configured `context_file_max_chars`), structure with headers (use `##` sections), include concrete examples (show preferred code patterns, API shapes, naming conventions), mention what NOT to do, list key paths and ports, and update as the project evolves [S1]."
+    },
+    {
+     "id": "v07",
+     "type": "visual",
+     "status": "not_found",
+     "seconds": 1.0,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided materials describe the steps of preparing documents for search (parsing, chunking, indexing) [S1], but they do not include a diagram that explicitly labels a 'Document Chunker' or shows the specific sequence of components in a pipeline. Therefore, the information is missing."
+    },
+    {
+     "id": "v08",
+     "type": "visual",
+     "status": "not_found",
+     "seconds": 0.7,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided materials describe the function of the reranker but do not specify its output in a diagram."
+    },
+    {
+     "id": "v09",
+     "type": "visual",
+     "status": "answered",
+     "seconds": 1.3,
+     "sources": [
+      "MBAX 6418 - Week 2 - LLM Fundamentals v2.pptx | Slide 34"
+     ],
+     "cites_gold": true,
+     "dropped_citations": 0,
+     "answer": "The person who built their SaaS with Cursor and zero hand-written code reported being \"under attack\" after sharing their method publicly. They experienced issues such as maxed out API key usage, people bypassing their subscription, and random data being created in their database [S1]."
+    },
+    {
+     "id": "u01",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.1,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the capital of Australia."
+    },
+    {
+     "id": "u02",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 0.7,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the date of the final exam for MBAX 6418."
+    },
+    {
+     "id": "u03",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 0.6,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the late-submission policy for assignments."
+    },
+    {
+     "id": "u04",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 0.9,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided materials do not explain how LoRA fine-tuning works. They mention fine-tuning as a method to adapt the model itself through additional training [S1], [S2], but do not provide details on specific techniques like LoRA."
+    },
+    {
+     "id": "u05",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 0.9,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the results or winner of the Week 5 class exercise."
+    },
+    {
+     "id": "u06",
+     "type": "unanswerable",
+     "status": "not_found",
+     "seconds": 1.0,
+     "sources": [],
+     "cites_gold": false,
+     "dropped_citations": 0,
+     "answer": "I couldn't find this in the selected course materials. The provided course materials do not contain information about the number of GPUs used to train the Qwen3.6-35B-A3B model."
+    }
+   ]
+  }
+ }
+}

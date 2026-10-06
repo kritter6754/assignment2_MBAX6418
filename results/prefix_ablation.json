@@ -1,0 +1,15 @@
+{
+ "n_questions": 29,
+ "text_vector_only": {
+  "no prefixes": {
+   "hit@1": 0.414,
+   "hit@3": 0.552,
+   "hit@8": 0.655
+  },
+  "query:/passage: prefixes": {
+   "hit@1": 0.828,
+   "hit@3": 0.931,
+   "hit@8": 1.0
+  }
+ }
+}

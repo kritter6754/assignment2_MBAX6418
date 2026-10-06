@@ -1,0 +1,35 @@
+{"id": "t01", "type": "text", "doc": "Week 2", "slides": [11], "question": "What is the tradeoff of using a KV cache?"}
+{"id": "t02", "type": "text", "doc": "Week 2", "slides": [15], "question": "Roughly how much memory does Qwen3-Coder-30B-A3B-Instruct need when quantized to 4 bits?"}
+{"id": "t03", "type": "text", "doc": "Week 2", "slides": [17], "question": "What is a Mixture of Experts (MoE) model?"}
+{"id": "t04", "type": "text", "doc": "Week 2", "slides": [10], "question": "What does time-to-first-token measure?"}
+{"id": "t05", "type": "text", "doc": "Week 2", "slides": [16], "question": "Which quantization formats are recommended for Apple M chips?"}
+{"id": "t06", "type": "text", "doc": "Week 2", "slides": [12], "question": "How does prefix caching help when a user sends a new message in a long agentic session?"}
+{"id": "t07", "type": "text", "doc": "Week 3", "slides": [20], "question": "What is the difference between zero-shot and few-shot prompting?"}
+{"id": "t08", "type": "text", "doc": "Week 3", "slides": [22], "question": "When should you consider using structured outputs?"}
+{"id": "t09", "type": "text", "doc": "Week 3", "slides": [30], "question": "Which Hermes context file has the highest priority?"}
+{"id": "t10", "type": "text", "doc": "Week 3", "slides": [32], "question": "What does Hermes store in USER.md?"}
+{"id": "t11", "type": "text", "doc": "Week 3", "slides": [7, 8, 10], "question": "What special tokens does the ChatML format use?"}
+{"id": "t12", "type": "text", "doc": "Week 4", "slides": [7], "question": "What port does a Gradio app use by default?"}
+{"id": "t13", "type": "text", "doc": "Week 4", "slides": [16], "question": "What questions should a useful bug report answer?"}
+{"id": "t14", "type": "text", "doc": "Week 4", "slides": [23], "question": "How long should a commit message summary be?"}
+{"id": "t15", "type": "text", "doc": "Week 5", "slides": [7], "question": "What is the Lost in the Middle effect?"}
+{"id": "t16", "type": "text", "doc": "Week 5", "slides": [17], "question": "What are common chunking strategies for RAG?"}
+{"id": "t17", "type": "text", "doc": "Week 5", "slides": [19], "question": "Which leaderboard is suggested for shortlisting retrieval models?"}
+{"id": "t18", "type": "text", "doc": "Week 6", "slides": [10], "question": "What is speaker diarization?"}
+{"id": "t19", "type": "text", "doc": "Week 6", "slides": [19], "question": "What licensing issue does OmniVoice have?"}
+{"id": "t20", "type": "text", "doc": "Week 6", "slides": [13], "question": "Which model is given as an example for text-to-image generation and image editing?"}
+{"id": "v01", "type": "visual", "doc": "Week 5", "slides": [5], "question": "In the context engineering diagram, which areas are shown inside context engineering?"}
+{"id": "v02", "type": "visual", "doc": "Week 5", "slides": [6], "question": "In the prompt engineering vs. context engineering figure, what step selects which possible context goes into the agent's context window?"}
+{"id": "v03", "type": "visual", "doc": "Week 3", "slides": [18], "question": "According to the Lee & Palmer framework, what is the first step when writing a prompt?"}
+{"id": "v04", "type": "visual", "doc": "Week 3", "slides": [23], "question": "How is Chain-of-Thought prompting described in the table of prompting techniques?"}
+{"id": "v05", "type": "visual", "doc": "Week 2", "slides": [29], "question": "According to the Google Trends chart, which search term overtook 'Learn to Code'?"}
+{"id": "v06", "type": "visual", "doc": "Week 3", "slides": [31], "question": "What best practices do Hermes' docs give for AGENTS.md files?"}
+{"id": "v07", "type": "visual", "doc": "Week 5", "slides": [16], "question": "In the diagram for preparing documents for search, what comes right after the Document Chunker?"}
+{"id": "v08", "type": "visual", "doc": "Week 5", "slides": [18], "question": "In the hybrid RAG pipeline diagram, what does the reranker output?"}
+{"id": "v09", "type": "visual", "doc": "Week 2", "slides": [34], "question": "What happened to the person who built their SaaS with Cursor and no hand-written code?"}
+{"id": "u01", "type": "unanswerable", "doc": "", "slides": [], "question": "What is the capital of Australia?"}
+{"id": "u02", "type": "unanswerable", "doc": "", "slides": [], "question": "When is the final exam for MBAX 6418?"}
+{"id": "u03", "type": "unanswerable", "doc": "", "slides": [], "question": "What is the late-submission policy for assignments in this course?"}
+{"id": "u04", "type": "unanswerable", "doc": "", "slides": [], "question": "How does LoRA fine-tuning work?"}
+{"id": "u05", "type": "unanswerable", "doc": "", "slides": [], "question": "Which team won the Week 5 class exercise?"}
+{"id": "u06", "type": "unanswerable", "doc": "", "slides": [], "question": "How many GPUs were used to train Qwen3.6-35B-A3B?"}
