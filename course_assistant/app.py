@@ -322,10 +322,10 @@ def build_ui(read_only: bool = False) -> gr.Blocks:
 
 def launch_options(s: ShareSettings) -> dict:
     """Keyword arguments for launch(). A public link without a password is refused."""
-    if s.share and not s.password:
-        raise SystemExit("SHARE=true needs APP_PASSWORD in .env: a public link without a "
-                         "password would let anyone use the class API through your key.")
-    opts: dict = {"server_name": "127.0.0.1", "share": s.share, "show_error": False}
+    if s.public and not s.password:
+        raise SystemExit("A public app (SHARE=true or HOST=0.0.0.0) needs APP_PASSWORD: without a "
+                         "password anyone could use the class API through your key.")
+    opts: dict = {"server_name": s.host, "server_port": s.port, "share": s.share, "show_error": False}
     if s.password:
         opts["auth"] = (s.username, s.password)
         opts["auth_message"] = "MBAX 6418 Course Assistant: ask your team for the password."
@@ -342,6 +342,8 @@ def main() -> None:
     if share.share:
         log.info("Creating a public link (up to a week, only while this computer runs the app); "
                  "read-only=%s", share.read_only)
+    log.info("Serving on %s:%s (read-only=%s, documents=%d)", share.host, share.port, share.read_only,
+             len(lib.docs))
     demo.queue(default_concurrency_limit=4).launch(allowed_paths=[str(lib.dir)], **opts)
 
 

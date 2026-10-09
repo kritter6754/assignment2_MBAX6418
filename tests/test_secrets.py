@@ -55,6 +55,9 @@ def test_logs_are_redacted(tmp_path, caplog):
     rec = logging.LogRecord("t", logging.INFO, "", 0, "using %s", (FAKE_KEY,), None)
     RedactingFilter().filter(rec)
     assert FAKE_KEY not in rec.getMessage()
+    num = logging.LogRecord("t", logging.INFO, "", 0, "%d docs", (5,), None)
+    RedactingFilter().filter(num)
+    assert num.getMessage() == "5 docs"  # non-string args keep their type
 
 
 def test_env_file_is_gitignored_and_example_has_dummies():

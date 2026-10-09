@@ -43,3 +43,24 @@ def test_read_only_ui_has_no_upload_or_remove(monkeypatch, lib):
     labels = _button_labels(app.build_ui(read_only=True))
     assert "Remove" not in labels and "Add to library" not in labels
     assert {"Ask", "Generate quiz"} <= labels
+
+
+def test_server_host_counts_as_public_and_needs_password():
+    s = ShareSettings(share=False, username="u", password="", read_only=True, host="0.0.0.0", port=8080)
+    assert s.public
+    with pytest.raises(SystemExit):
+        app.launch_options(s)
+    ok = app.launch_options(ShareSettings(share=False, username="u", password="pw", read_only=True,
+                                          host="0.0.0.0", port=8080))
+    assert ok["server_name"] == "0.0.0.0" and ok["server_port"] == 8080 and ok["share"] is False
+
+
+def test_host_and_port_from_env(monkeypatch, tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("")
+    for k in ("SHARE", "READ_ONLY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("HOST", "0.0.0.0")
+    monkeypatch.setenv("PORT", "9999")
+    s = load_share_settings(env)
+    assert (s.host, s.port, s.read_only) == ("0.0.0.0", 9999, True)

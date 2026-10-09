@@ -17,3 +17,6 @@ __pycache__/
 .idea/
 .vscode/
 .gradio/
+
+# --- deploy bundle (contains slide images; never commit) ---
+deploy/

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from conftest import answer_json, doc_id_by_name
 
 from course_assistant.answer import answer_question
@@ -172,3 +174,24 @@ def test_special_tokens_survive_round_trip():
     s = "ChatML uses <|im_start|>system and <|im_end|>"
     assert "<|" not in protect_special(s)
     assert restore_special(protect_special(s)) == s
+
+
+def test_library_moves_between_machines(tmp_path, fake):
+    """Image paths are stored relative to the data dir, so a copied library still finds them."""
+    import json
+    import shutil
+
+    from PIL import Image
+
+    from course_assistant.library import Library
+
+    img = tmp_path / "chart.png"
+    Image.new("RGB", (40, 30), "white").save(img)
+    Library(tmp_path / "a", fake).add_file(img, progress=lambda m: None)
+    stored = json.loads(next((tmp_path / "a" / "docs").glob("*/pages.json")).read_text())
+    assert not stored[0]["image_path"].startswith("/")  # relative on disk
+    shutil.copytree(tmp_path / "a", tmp_path / "b")
+    shutil.rmtree(tmp_path / "a")
+    moved = Library(tmp_path / "b", fake)
+    page = next(iter(moved.pages.values()))
+    assert page.image_path.startswith(str(tmp_path / "b")) and Path(page.image_path).exists()

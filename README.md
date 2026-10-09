@@ -96,6 +96,25 @@ uv run course-assistant
 
 Loading the five course decks (142 slides) takes about 3 minutes, mostly OCR and image embeddings. Documents are stored under `data/` (git-ignored) and stay there between runs. A typical answer takes 2–4 seconds and a 5-question quiz about 10 seconds.
 
+### Always-on hosting (Railway)
+
+The app runs on [Railway](https://railway.com), so it stays up when everyone's laptops are off. The server image contains the code and the prepared library (slide images, extracted text, search indexes), built from your local `data/`. The server never sees the original course files, and none of this goes to GitHub.
+
+First time (one person):
+```bash
+railway login                       # opens a browser
+railway init -n course-assistant    # creates the Railway project
+scripts/deploy_railway.sh           # copies .env settings to Railway, builds, uploads
+railway domain                      # creates the public https://...up.railway.app address
+```
+
+To redeploy after code or library changes, run `scripts/deploy_railway.sh` again. Other teammates run `railway link` once first.
+
+- **Settings live in Railway variables.** The script copies them from `.env` through stdin, so the key never appears in a command, a log or the image.
+- **The hosted app is read-only and needs the login** (`APP_USERNAME`/`APP_PASSWORD`). It refuses to start on a public host without a password.
+- **Saved quizzes on the server are lost on each redeploy.** Library changes are made locally, then redeployed.
+- Railway charges about $5 a month after its free trial credit.
+
 ### Sharing a public link
 
 To let classmates use the app running on your computer:
@@ -237,7 +256,7 @@ Rows 1–3 were recorded from development runs; only the final run is saved in `
 - **"Visual evidence" sources** are labelled *"Model's reading of the image"* when the model describes a diagram instead of quoting it. Those depend on the LLM support check rather than an exact text match.
 - **Partial answers:** the model sometimes answers "not found" when the slides cover only part of a question, instead of giving the partial answer.
 - **Secret redaction replaces the literal key value in logs and errors.** Because the class key is a short number that also appears in the course code, redacted logs may show `MBAX [REDACTED]`.
-- **Page images and indexes live in `data/` on one machine** and aren't shared between teammates. Each person runs the ingest script.
+- **The library is built on one machine.** Page images and indexes live in `data/` locally, and the hosted copy is a snapshot taken at deploy time. To change the hosted library, ingest locally and redeploy.
 - **Course slides are the instructor's material.** `data/` is git-ignored, so slide files and page images are not committed. The README screenshots do show slide content.
 
 ## Working on this as a team
