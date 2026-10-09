@@ -96,6 +96,25 @@ uv run course-assistant
 
 Loading the five course decks (142 slides) takes about 3 minutes, mostly OCR and image embeddings. Documents are stored under `data/` (git-ignored) and stay there between runs. A typical answer takes 2–4 seconds and a 5-question quiz about 10 seconds.
 
+### Sharing a public link
+
+To let classmates use the app running on your computer:
+
+```bash
+# in .env
+SHARE=true
+APP_USERNAME=mbax
+APP_PASSWORD=<pick a password>
+
+uv run course-assistant      # prints "Running on public URL: https://xxxx.gradio.live"
+```
+
+Send classmates the link and, separately, the username and password.
+- **The link only works while your computer is awake and the app is running.** Gradio keeps it for up to a week (best effort); each restart creates a new link.
+- **Read-only by default.** When shared, upload and remove are left out of the interface entirely, so visitors can ask questions, take quizzes and browse documents, but can't change the library. Set `READ_ONLY=false` to override.
+- **A password is required.** The app refuses to start with `SHARE=true` and no `APP_PASSWORD`, because an open link would let anyone use the class API through your key.
+- Everyone with the link uses the class endpoints with your key, and sees the instructor's slides.
+
 ## How it works
 
 ```
@@ -145,7 +164,7 @@ Tests check each of these, and the UI walkthrough checks the page HTML for leaks
 
 | Command | What it checks | Needs the class services? |
 |---|---|---|
-| `uv run pytest` | **38 offline tests** using fake services: ingestion of every format family, chunk offsets and boundaries, quote matching, retrieval and doc filters, answer validation (fabricated quotes, unknown ids, malformed JSON retry, unsupported claims, not-found), visual evidence, quiz validation, fixed key, tamper detection, hidden answers, grading, secret redaction, `.gitignore`, no key in tracked files | No (runs in GitHub Actions on every push and PR) |
+| `uv run pytest` | **43 offline tests** using fake services: ingestion of every format family, chunk offsets and boundaries, quote matching, retrieval and doc filters, answer validation (fabricated quotes, unknown ids, malformed JSON retry, unsupported claims, not-found), visual evidence, quiz validation, fixed key, tamper detection, hidden answers, grading, secret redaction, `.gitignore`, no key in tracked files | No (runs in GitHub Actions on every push and PR) |
 | `uv run pytest -m live` | 3 smoke tests against the real LLM, embeddings, reranker and OCR | Yes |
 | `uv run python scripts/ui_walkthrough.py` | Drives the running app in a headless browser: asks an answerable question and an unanswerable one, generates a quiz and confirms answers are hidden before checking, checks one answer and reveals another, verifies the score, browses the library, checks the page for secrets, and saves the screenshots in `docs/screenshots/` | Yes (app running) |
 | `uv run python eval/run_eval.py` | The benchmark below. Writes [`results/summary.md`](results/summary.md) and [`results/eval_results.json`](results/eval_results.json) | Yes |
@@ -197,7 +216,7 @@ Rows 1–3 were recorded from development runs; only the final run is saved in `
 ## What was tested and what wasn't
 
 **Tested (automated, passing as of the last run):**
-- the 38 offline tests;
+- the 43 offline tests (including password and read-only checks for sharing);
 - the 3 live service smoke tests;
 - the browser walkthrough of all three tabs;
 - the 35-question benchmark.
