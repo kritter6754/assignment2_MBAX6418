@@ -95,3 +95,46 @@ def test_grading(lib, fake):
 def test_requires_documents(lib):
     with pytest.raises(ValueError):
         generate_quiz(lib, [], n=3)
+
+
+def _prompt_text(fake) -> str:
+    return " ".join(p.get("text", "") for p in fake.chat_calls[-1][1]["content"] if p.get("type") == "text")
+
+
+def test_difficulty_is_requested_and_labelled(lib, fake):
+    bio = doc_id_by_name(lib, "biology.md")
+    fake.chat_replies = [_quiz_reply(lib, n=2)]
+    quiz = generate_quiz(lib, [bio], n=2, seed=1, difficulty="hard")
+    assert "Every question must be hard" in _prompt_text(fake)
+    assert quiz.difficulty == "hard" and all(q.difficulty == "hard" for q in quiz.questions)
+
+    fake.chat_replies = [_quiz_reply(lib, n=2)]
+    generate_quiz(lib, [bio], n=2, seed=1, difficulty="mixed")
+    assert "mix of easy, medium and hard" in _prompt_text(fake)
+    with pytest.raises(ValueError, match="Difficulty"):
+        generate_quiz(lib, [bio], n=2, difficulty="impossible")
+
+
+def test_mastered_questions_are_not_asked_again(lib, fake):
+    bio = doc_id_by_name(lib, "biology.md")
+    fake.chat_replies = [_quiz_reply(lib, n=3), _quiz_reply(lib, n=3)]
+    quiz = generate_quiz(lib, [bio], n=3, seed=1, exclude_questions=["Question 0 about the notes?"])
+    assert "Question 0 about the notes?" in _prompt_text(fake)  # the model is told to avoid it
+    assert "Question 0 about the notes?" not in [q.question for q in quiz.questions]  # and it's filtered
+
+
+def test_retry_missed_keeps_only_missed_with_its_own_fixed_key(lib, fake):
+    from course_assistant.quiz import retry_missed
+
+    bio = doc_id_by_name(lib, "biology.md")
+    fake.chat_replies = [_quiz_reply(lib, n=3)]
+    quiz = generate_quiz(lib, [bio], n=3, seed=3)
+    q1, q2, q3 = quiz.questions
+    retry = retry_missed(quiz, {q1.qid: q1.correct_index, q2.qid: (q2.correct_index + 1) % 4})
+    assert [q.question for q in retry.questions] == [q2.question, q3.question]  # wrong + unanswered
+    assert [q.qid for q in retry.questions] == ["q1", "q2"] and retry.retry_of == quiz.quiz_id
+    assert [q.correct_index for q in retry.questions] == [q2.correct_index, q3.correct_index]
+    save_quiz(retry, lib.dir)
+    assert load_quiz(retry.quiz_id, lib.dir).answer_key_sha256 == retry.answer_key_sha256
+    all_right = {q.qid: q.correct_index for q in quiz.questions}
+    assert retry_missed(quiz, all_right) is None

@@ -16,7 +16,7 @@ import gradio as gr
 from . import get_library
 from .answer import AnswerResult, SourceRef, answer_question
 from .config import ACCEPTED_FORMATS, redact, setup_logging
-from .quiz import Quiz, generate_quiz, grade, load_quiz, public_questions, save_quiz
+from .quiz import Quiz, generate_quiz, grade, load_quiz, public_questions, retry_missed, save_quiz
 
 log = logging.getLogger(__name__)
 
@@ -31,11 +31,27 @@ STATUS_BADGE = {
 }
 
 # -- theme helper ----------------------------------------------------------------
-THEME_TOGGLE_JS = """
-() => {
-    const isDark = document.documentElement.classList.toggle('dark');
-    return isDark ? "🌙 Dark Mode" : "☀️ Light Mode";
-}
+# Gradio 6 marks dark mode with a `dark` class on <body> (set from the system setting on
+# load), so that is the element to toggle. The choice is remembered in localStorage.
+TO_LIGHT, TO_DARK = "☀️ Light mode", "🌙 Dark mode"
+
+THEME_TOGGLE_JS = f"""
+() => {{
+    const dark = !document.body.classList.contains('dark');
+    document.body.classList.toggle('dark', dark);
+    document.documentElement.classList.remove('dark');
+    try {{ localStorage.setItem('course-assistant-theme', dark ? 'dark' : 'light'); }} catch (e) {{}}
+    return dark ? "{TO_LIGHT}" : "{TO_DARK}";
+}}
+"""
+
+THEME_ON_LOAD_JS = f"""
+() => {{
+    let saved = null;
+    try {{ saved = localStorage.getItem('course-assistant-theme'); }} catch (e) {{}}
+    if (saved === 'dark' || saved === 'light') document.body.classList.toggle('dark', saved === 'dark');
+    return document.body.classList.contains('dark') ? "{TO_LIGHT}" : "{TO_DARK}";
+}}
 """
 
 def _safe_error(e: Exception) -> str:
@@ -152,47 +168,6 @@ def ask(question, doc_ids):
         return f"{STATUS_BADGE['error']}\n\n{_safe_error(e)}", ""
     return render_answer(r)
 
-import json
-import random
-
-def load_filtered_quiz(selected_docs, difficulty, num_questions, mastered_question_ids):
-    mastered_ids = set(mastered_question_ids or [])
-    candidate_pool = []
-    quiz_bank_dir = Path("data/quiz_banks")
-
-    for doc in selected_docs or []:
-        bank_file = quiz_bank_dir / f"{doc}.json"
-        if not bank_file.exists():
-            continue
-        with open(bank_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            for q in data.get("questions", []):
-                if q["id"] not in mastered_ids:
-                    if difficulty == "Mixed" or q.get("difficulty") == difficulty.lower():
-                        candidate_pool.append(q)
-
-    if not candidate_pool:
-        return None, "No new questions available for this difficulty level!"
-
-    random.shuffle(candidate_pool)
-    return candidate_pool[:int(num_questions)], f"Loaded {len(candidate_pool[:int(num_questions)])} questions."
-
-def record_quiz_progress(current_quiz, user_answers, mastered_question_ids):
-    mastered = set(mastered_question_ids or [])
-    feedback = []
-    if not current_quiz:
-        return list(mastered), "No active quiz."
-        
-    for idx, q in enumerate(current_quiz):
-        chosen = user_answers.get(idx)
-        if chosen == q["correct_index"]:
-            mastered.add(q["id"])
-            feedback.append(f"Q{idx+1}: Correct! 🎉")
-        else:
-            feedback.append(f"Q{idx+1}: Incorrect. Answer was {q['options'][q['correct_index']]}")
-    return list(mastered), "\n".join(feedback)
-
-
 # -- quiz --------------------------------------------------------------------------
 def _quiz(quiz_id: str | None) -> Quiz | None:
     if not quiz_id:
@@ -225,32 +200,40 @@ def _feedback_md(quiz: Quiz, i: int, chosen: int | None) -> str:
             f"**Source: {s.doc_name} — {s.location}**\n> {html.escape(s.excerpt)}")
 
 
-def make_quiz(doc_ids, topic, n, progress=gr.Progress()):
-    lib = get_library()
-    hidden = [gr.update(visible=False)] * MAX_Q
-    blank = [gr.update(value="")] * MAX_Q
-    try:
-        if not doc_ids:
-            raise ValueError("Choose at least one document for the quiz.")
-        progress(0.2, desc="Retrieving material and writing questions")
-        quiz = generate_quiz(lib, doc_ids, topic or "", int(n))
-        save_quiz(quiz, lib.dir)
-    except Exception as e:
-        log.exception("quiz failed")
-        return [None, {}, f"❗ {_safe_error(e)}", ""] + hidden + blank * 3 + [gr.update(value=None)] * MAX_Q
+def _mastered_md(mastered: list[str] | None) -> str:
+    n = len(mastered or [])
+    if not n:
+        return "_Mastered questions: none yet. Questions you answer correctly won't be asked again._"
+    return f"_Mastered questions: **{n}**. New quizzes won't repeat them._"
 
+
+def _render_quiz(quiz: Quiz | None, message: str = "", requested: int | None = None) -> list:
+    """Outputs for: quiz_id, progress, header, score, then per-slot groups, text, radios,
+    feedback, images. Only questions and options are sent; answers stay on the server."""
+    if quiz is None:
+        return ([None, {}, message, ""] + [gr.update(visible=False)] * MAX_Q
+                + [gr.update(value="")] * MAX_Q + [gr.update(choices=[], value=None)] * MAX_Q
+                + [gr.update(value="")] * MAX_Q + [gr.update(value=None, visible=False)] * MAX_Q)
     pub = public_questions(quiz)  # no answers leave the server here
-    header = f"**Quiz `{quiz.quiz_id}`** — {len(pub)} questions from {', '.join(quiz.doc_names)}"
-    if quiz.topic:
-        header += f" · topic: *{html.escape(quiz.topic)}*"
-    if quiz.notes and len(pub) < int(n):
-        header += f"\n\n_{len(pub)} of {int(n)} requested questions passed validation._"
+    if quiz.retry_of:
+        header = f"**Retry of quiz `{quiz.retry_of}`**: {len(pub)} missed question(s)"
+    else:
+        header = f"**Quiz `{quiz.quiz_id}`**: {len(pub)} questions from {', '.join(quiz.doc_names)}"
+        header += f" · difficulty: *{quiz.difficulty}*"
+        if quiz.topic:
+            header += f" · topic: *{html.escape(quiz.topic)}*"
+    if requested and len(pub) < requested:
+        header += f"\n\n_{len(pub)} of {requested} requested questions passed validation._"
+    if message:
+        header += f"\n\n{message}"
     groups, qmd, radios, fb, imgs = [], [], [], [], []
     for i in range(MAX_Q):
         if i < len(pub):
             q = pub[i]
+            level = quiz.questions[i].difficulty
+            tag = f" <small>({level})</small>" if level else ""
             groups.append(gr.update(visible=True))
-            qmd.append(gr.update(value=f"**Q{i + 1}. {html.escape(q['question'])}**"))
+            qmd.append(gr.update(value=f"**Q{i + 1}. {html.escape(q['question'])}**{tag}"))
             radios.append(gr.update(choices=[f"{LETTERS[j]}. {o}" for j, o in enumerate(q["options"])],
                                     value=None, interactive=True))
         else:
@@ -262,37 +245,78 @@ def make_quiz(doc_ids, topic, n, progress=gr.Progress()):
     return [quiz.quiz_id, {}, header, _score_md(quiz, {})] + groups + qmd + radios + fb + imgs
 
 
-def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool):
+def make_quiz(doc_ids, topic, difficulty, n, mastered, progress=gr.Progress()):
+    lib = get_library()
+    try:
+        if not doc_ids:
+            raise ValueError("Choose at least one document for the quiz.")
+        progress(0.2, desc="Retrieving material and writing questions")
+        quiz = generate_quiz(lib, doc_ids, topic or "", int(n), difficulty=difficulty,
+                             exclude_questions=list(mastered or []))
+        save_quiz(quiz, lib.dir)
+    except Exception as e:
+        log.exception("quiz failed")
+        return _render_quiz(None, f"❗ {_safe_error(e)}")
+    return _render_quiz(quiz, requested=int(n))
+
+
+def redo_missed(quiz_id, progress):
     quiz = _quiz(quiz_id)
+    if quiz is None:
+        return [gr.update()] * 4 + [gr.update()] * (5 * MAX_Q)
+    responses = {qid: p.get("chosen") for qid, p in (progress or {}).items()}
+    retry = retry_missed(quiz, responses)
+    if retry is None:
+        return [gr.update(), gr.update(), gr.update(), _score_md(quiz, progress or {})
+                + "\n\n🎉 Nothing to retry: every question was answered correctly."] + \
+            [gr.update()] * (5 * MAX_Q)
+    save_quiz(retry, get_library().dir)
+    return _render_quiz(retry)
+
+
+def reset_mastered():
+    return [], _mastered_md([])
+
+
+def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool, mastered: list | None):
+    quiz = _quiz(quiz_id)
+    mastered = list(mastered or [])
     if quiz is None or i >= len(quiz.questions):
-        return progress, gr.update(), gr.update(), gr.update(), gr.update()
+        return progress, gr.update(), gr.update(), gr.update(), gr.update(), mastered, gr.update()
     q = quiz.questions[i]
     progress = dict(progress or {})
     if q.qid in progress:  # already finished: answers are final
-        return progress, gr.update(), gr.update(), gr.update(), _score_md(quiz, progress)
+        return progress, gr.update(), gr.update(), gr.update(), _score_md(quiz, progress), mastered, gr.update()
     if not reveal and not choice:
-        return progress, gr.update(value="Choose an answer first."), gr.update(), gr.update(), gr.update()
-    chosen = LETTERS.index(choice[0]) if choice and not reveal else None
-    if reveal and choice:  # revealing after picking still grades the pick
-        chosen = LETTERS.index(choice[0])
+        return (progress, gr.update(value="Choose an answer first."), gr.update(), gr.update(), gr.update(),
+                mastered, gr.update())
+    chosen = LETTERS.index(choice[0]) if choice else None  # revealing after picking still grades the pick
     progress[q.qid] = {"chosen": chosen, "revealed": reveal}
+    # Mastered = answered correctly before seeing the solution.
+    if not reveal and chosen == q.correct_index and q.question not in mastered:
+        mastered.append(q.question)
     img = gr.update(value=q.source.image_path, visible=bool(q.source.image_path),
                     label=f"{q.source.doc_name} — {q.source.location}")
     return (progress, _feedback_md(quiz, i, chosen), gr.update(interactive=False), img,
-            _score_md(quiz, progress))
+            _score_md(quiz, progress), mastered, _mastered_md(mastered))
 
 
 def build_ui() -> gr.Blocks:
     lib = get_library()
     choices = _doc_choices()
     
-    with gr.Blocks(title="Course Assistant", theme=gr.themes.Default()) as demo:
+    with gr.Blocks(title="Course Assistant") as demo:
         with gr.Row():
             gr.Markdown("# 📚 Course Assistant\nAsk questions about your course materials and practise "
                         "with quizzes. Every answer cites the document and page/slide it came from.")
-            theme_btn = gr.Button("🌓 Toggle Dark/Light Mode", elem_id="theme-toggle-btn", scale=0)
+            theme_btn = gr.Button("🌓 Dark / light mode", elem_id="theme-toggle-btn", scale=0)
             theme_btn.click(fn=None, inputs=None, outputs=theme_btn, js=THEME_TOGGLE_JS)
-            
+            demo.load(fn=None, inputs=None, outputs=theme_btn, js=THEME_ON_LOAD_JS)
+        # Questions answered correctly, kept in this browser across reloads. Defined outside
+        # the tabs: Gradio only mounts a tab's components when it is opened, and a
+        # BrowserState that isn't mounted yet is read as its default ([]) on page load.
+        mastered = gr.BrowserState([], storage_key="course-assistant-mastered")
+
         with gr.Tab("Ask"):
             with gr.Row():
                 with gr.Column(scale=3):
@@ -306,18 +330,22 @@ def build_ui() -> gr.Blocks:
             ask_btn.click(ask, [question, ask_docs], [answer_md, sources_md])
             question.submit(ask, [question, ask_docs], [answer_md, sources_md])
 
-        with gr.Tab("Quiz"):
+        with gr.Tab("Quiz") as quiz_tab:
             quiz_id = gr.State(None)
             quiz_progress = gr.State({})
-            mastered_questions_state = gr.State(value=[])
-            active_quiz_state = gr.State(value=[])
-            
+
             with gr.Row():
                 quiz_docs = gr.CheckboxGroup(choices=choices, label="Material for the quiz")
                 with gr.Column():
-                    difficulty_radio = gr.Radio(choices=["Mixed", "Easy", "Medium", "Hard"], value="Mixed", label="Difficulty")
+                    topic = gr.Textbox(label="Topic filter (optional)", placeholder="e.g. KV cache")
+                    difficulty = gr.Radio(choices=[("Mixed", "mixed"), ("Easy", "easy"), ("Medium", "medium"),
+                                                   ("Hard", "hard")], value="mixed", label="Difficulty")
                     n_q = gr.Slider(1, MAX_Q, value=5, step=1, label="Number of questions")
-                    gen_btn = gr.Button("Generate / Redo Quiz", variant="primary")
+                    gen_btn = gr.Button("Generate quiz", variant="primary")
+                    with gr.Row():
+                        redo_btn = gr.Button("Retry missed questions", size="sm")
+                        reset_btn = gr.Button("Reset mastered questions", size="sm")
+                    mastered_md = gr.Markdown(_mastered_md([]))
             quiz_header = gr.Markdown()
             score_md = gr.Markdown()
             groups, qmds, radios, fbs, imgs = [], [], [], [], []
@@ -331,14 +359,17 @@ def build_ui() -> gr.Blocks:
                     fb = gr.Markdown()
                     img = gr.Image(visible=False, interactive=False, height=320, show_label=True)
                 groups.append(g); qmds.append(qmd); radios.append(radio); fbs.append(fb); imgs.append(img)
-                outs = [quiz_progress, fb, radio, img, score_md]
-                check.click(lambda qid, prog, ch, i=i: _finish(i, qid, prog, ch, False),
-                            [quiz_id, quiz_progress, radio], outs)
-                reveal.click(lambda qid, prog, ch, i=i: _finish(i, qid, prog, ch, True),
-                             [quiz_id, quiz_progress, radio], outs)
-            # Notice we use difficulty_radio and mastered_questions_state in the inputs now
-            gen_btn.click(load_filtered_quiz, [quiz_docs, difficulty_radio, n_q, mastered_questions_state],
-                          [active_quiz_state, quiz_header])
+                outs = [quiz_progress, fb, radio, img, score_md, mastered, mastered_md]
+                check.click(lambda qid, prog, ch, m, i=i: _finish(i, qid, prog, ch, False, m),
+                            [quiz_id, quiz_progress, radio, mastered], outs)
+                reveal.click(lambda qid, prog, ch, m, i=i: _finish(i, qid, prog, ch, True, m),
+                             [quiz_id, quiz_progress, radio, mastered], outs)
+            quiz_outs = [quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
+            gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs)
+            redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs)
+            reset_btn.click(reset_mastered, None, [mastered, mastered_md])
+            demo.load(_mastered_md, [mastered], [mastered_md])
+            quiz_tab.select(_mastered_md, [mastered], [mastered_md])
 
         with gr.Tab("Library"):
             with gr.Row():
@@ -374,7 +405,8 @@ def main() -> None:
     setup_logging()
     lib = get_library()
     demo = build_ui()
-    demo.queue().launch(server_name="127.0.0.1", allowed_paths=[str(lib.dir)], show_error=False)
+    demo.queue().launch(server_name="127.0.0.1", allowed_paths=[str(lib.dir)], show_error=False,
+                        theme=gr.themes.Default())
 
 
 if __name__ == "__main__":

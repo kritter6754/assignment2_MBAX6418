@@ -38,8 +38,10 @@ QUIZ_SCHEMA = {
                     "explanation": {"type": "string"},
                     "source_id": {"type": "string"},
                     "quote": {"type": "string"},
+                    "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},
                 },
-                "required": ["question", "options", "correct_index", "explanation", "source_id", "quote"],
+                "required": ["question", "options", "correct_index", "explanation", "source_id", "quote",
+                             "difficulty"],
             },
         }
     },
@@ -54,9 +56,17 @@ For each question:
 - "correct_index" is the 0-based position of the correct option.
 - "explanation": 1-3 sentences on why the answer is correct, based on the evidence.
 - "source_id": the evidence id that supports the answer; "quote": a short passage (under 300 characters) copied word for word from that evidence's text.
+- "difficulty": "easy", "medium" or "hard" (see below).
 - Don't use "All of the above" or "None of the above". Don't repeat questions.
 
+Difficulty levels (every question, even a hard one, must be answerable from the evidence alone):
+- easy: recall one fact or definition stated directly in the evidence; wrong options are clearly wrong.
+- medium: understand or apply a concept from the evidence; wrong options are plausible.
+- hard: reason across several details, compare concepts, or apply an idea to a short scenario; wrong options are close but contradicted by the evidence.
+
 Return JSON: {"questions": [...]}"""
+
+DIFFICULTIES = ("mixed", "easy", "medium", "hard")
 
 
 class QuizQuestion(BaseModel):
@@ -66,6 +76,7 @@ class QuizQuestion(BaseModel):
     correct_index: int
     explanation: str
     source: SourceRef
+    difficulty: str = ""  # easy / medium / hard, as labelled by the model
 
 
 class Quiz(BaseModel):
@@ -74,6 +85,8 @@ class Quiz(BaseModel):
     doc_ids: list[str]
     doc_names: list[str]
     topic: str = ""
+    difficulty: str = "mixed"
+    retry_of: str = ""  # quiz id this quiz retries the missed questions of
     questions: list[QuizQuestion]
     answer_key_sha256: str
     notes: list[str] = Field(default_factory=list)
@@ -101,6 +114,7 @@ class _RawQ(BaseModel):
     explanation: str = Field(min_length=5)
     source_id: str
     quote: str
+    difficulty: str = "medium"
 
 
 def answer_key_hash(questions: list[QuizQuestion]) -> str:
@@ -151,12 +165,19 @@ def _shuffle(q: _RawQ, rng: random.Random) -> tuple[list[str], int]:
 
 
 def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
-                  seed: int | None = None) -> Quiz:
+                  seed: int | None = None, difficulty: str = "mixed",
+                  exclude_questions: list[str] | None = None) -> Quiz:
+    """`difficulty` is mixed/easy/medium/hard. `exclude_questions` are questions the
+    student has already mastered; they are not asked again."""
     if not doc_ids:
         raise ValueError("Choose at least one document.")
+    difficulty = (difficulty or "mixed").strip().lower()
+    if difficulty not in DIFFICULTIES:
+        raise ValueError(f"Difficulty must be one of {', '.join(DIFFICULTIES)}.")
     n = max(1, min(n, 15))
     seed = seed if seed is not None else int(time.time())
     topic = topic.strip()
+    excluded = {normalize(q) for q in exclude_questions or []}
 
     if topic:
         evidence = retrieve(lib, topic, doc_ids, max_evidence=min(4 + n, 12), max_images=3)
@@ -174,8 +195,12 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
         if need <= 0:
             break
         ask = f"Write {need} questions" + (f" about: {topic}" if topic else " covering different evidence items")
-        if seen_q:
-            ask += ". Do not repeat these questions: " + " | ".join(q.question for q, _ in accepted)
+        ask += (". Use a mix of easy, medium and hard questions" if difficulty == "mixed"
+                else f". Every question must be {difficulty}")
+        avoid = [q.question for q, _ in accepted] + list(exclude_questions or [])[-40:]
+        if avoid:
+            ask += (". The student has already answered these correctly or seen them; do not ask them "
+                    "again or ask the same thing in other words: " + " | ".join(avoid))
         content = [{"type": "text", "text": "Evidence from the course materials:"}]
         content += evidence_messages(evidence, image_max_side=896)
         content.append({"type": "text", "text": ask + "."})
@@ -193,8 +218,10 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
             if q is None:
                 notes.append(f"Rejected a generated question: {why}.")
                 continue
-            if normalize(q.question) in seen_q:
+            if normalize(q.question) in seen_q or normalize(q.question) in excluded:
                 continue
+            if difficulty != "mixed":
+                q.difficulty = difficulty
             seen_q.add(normalize(q.question))
             accepted.append((q, by_id[q.source_id.strip("[] ")]))
             if len(accepted) >= n:
@@ -208,7 +235,7 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
         options, correct = _shuffle(q, rng)
         questions.append(QuizQuestion(
             qid=f"q{i}", question=q.question.strip(), options=[o.strip() for o in options],
-            correct_index=correct, explanation=q.explanation.strip(),
+            correct_index=correct, explanation=q.explanation.strip(), difficulty=q.difficulty,
             source=SourceRef(eid=ev.eid, doc_name=ev.page.doc_name, location=ev.page.label,
                              page_id=ev.page_id, excerpt=q.quote.strip(),
                              image_path=ev.page.image_path, kind=ev.kind)))
@@ -216,7 +243,22 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
         notes.append(f"Only {len(questions)} of {n} questions passed validation.")
     return Quiz(quiz_id=uuid.uuid4().hex[:10], created=time.time(), doc_ids=list(doc_ids),
                 doc_names=[lib.docs[d].name for d in doc_ids if d in lib.docs], topic=topic,
-                questions=questions, answer_key_sha256=answer_key_hash(questions), notes=notes)
+                difficulty=difficulty, questions=questions,
+                answer_key_sha256=answer_key_hash(questions), notes=notes)
+
+
+def retry_missed(quiz: Quiz, responses: dict[str, int | None]) -> Quiz | None:
+    """A new quiz with only the questions answered wrongly or not answered (e.g. revealed).
+    Questions and answer key are copied unchanged; the new quiz gets its own id and hash.
+    Returns None when everything was answered correctly."""
+    missed = [q for q in quiz.questions if responses.get(q.qid) != q.correct_index]
+    if not missed:
+        return None
+    questions = [q.model_copy(update={"qid": f"q{i}"}) for i, q in enumerate(missed, start=1)]
+    return Quiz(quiz_id=uuid.uuid4().hex[:10], created=time.time(), doc_ids=quiz.doc_ids,
+                doc_names=quiz.doc_names, topic=quiz.topic, difficulty=quiz.difficulty,
+                retry_of=quiz.quiz_id, questions=questions,
+                answer_key_sha256=answer_key_hash(questions))
 
 
 # -- storage ------------------------------------------------------------------
