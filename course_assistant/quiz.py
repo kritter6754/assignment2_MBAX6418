@@ -7,7 +7,8 @@ cannot silently change between generation and grading. The interface only ever
 receives `public_questions()` (no answers) until a student submits or reveals.
 """
 from __future__ import annotations
-
+import os
+import threading
 import hashlib
 import json
 import random
@@ -47,7 +48,11 @@ QUIZ_SCHEMA = {
 }
 
 QUIZ_PROMPT = """You write multiple-choice practice questions for a university course, using ONLY the evidence provided (labelled [S1], [S2], ...; some are slide/page images, including diagrams and charts).
+# Maximum number of stored questions per topic
+MAX_BANK_SIZE = 30
 
+# Protect question-bank updates from simultaneous requests
+_BANK_LOCK = threading.Lock()
 For each question:
 - Test understanding of an important idea in the evidence, not trivia like slide numbers, names on title slides, or dates.
 - Give exactly 4 options. Exactly one is correct according to the evidence; the other three are plausible but clearly wrong according to the evidence.
@@ -218,7 +223,71 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
                 doc_names=[lib.docs[d].name for d in doc_ids if d in lib.docs], topic=topic,
                 questions=questions, answer_key_sha256=answer_key_hash(questions), notes=notes)
 
+# -- question bank ------------------------------------------------------------
 
+def _bank_path(data_dir: Path, doc_ids: list[str], topic: str) -> Path:
+    """Create a unique bank filename for each topic and document selection."""
+    key = json.dumps(
+        {
+            "doc_ids": sorted(doc_ids),
+            "topic": topic.strip().casefold(),
+        },
+        sort_keys=True,
+    )
+    bank_id = hashlib.sha256(key.encode()).hexdigest()[:20]
+    return Path(data_dir) / "question_banks" / f"{bank_id}.json"
+
+
+def load_question_bank(
+    data_dir: Path, doc_ids: list[str], topic: str
+) -> list[QuizQuestion]:
+    """Load previously validated questions for this topic and document set."""
+    path = _bank_path(data_dir, doc_ids, topic)
+
+    if not path.exists():
+        return []
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    questions = [QuizQuestion.model_validate(q) for q in data["questions"]]
+
+    if answer_key_hash(questions) != data["answer_key_sha256"]:
+        raise ValueError("Question bank failed its answer-key integrity check.")
+
+    return questions[:MAX_BANK_SIZE]
+
+
+def save_question_bank(
+    data_dir: Path,
+    doc_ids: list[str],
+    topic: str,
+    questions: list[QuizQuestion],
+) -> Path:
+    """Save up to 30 questions with an integrity-protected answer key."""
+    path = _bank_path(data_dir, doc_ids, topic)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    unique = []
+    seen = set()
+
+    for question in questions:
+        key = normalize(question.question)
+        if key not in seen:
+            unique.append(question)
+            seen.add(key)
+
+        if len(unique) >= MAX_BANK_SIZE:
+            break
+
+    data = {
+        "questions": [q.model_dump() for q in unique],
+        "answer_key_sha256": answer_key_hash(unique),
+    }
+
+    temporary_path = path.with_suffix(".tmp")
+    temporary_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(temporary_path, path)
+
+    return path
 # -- storage ------------------------------------------------------------------
 def save_quiz(quiz: Quiz, data_dir: Path) -> Path:
     path = Path(data_dir) / "quizzes" / f"{quiz.quiz_id}.json"
