@@ -166,16 +166,45 @@ def _score_md(quiz: Quiz, progress: dict) -> str:
 
 def _feedback_md(quiz: Quiz, i: int, chosen: int | None) -> str:
     q = quiz.questions[i]
-    correct = f"**{LETTERS[q.correct_index]}. {html.escape(q.options[q.correct_index])}**"
+
+    correct_letter = LETTERS[q.correct_index]
+    correct_answer = html.escape(q.options[q.correct_index])
+    explanation = html.escape(q.explanation)
+
     if chosen is None:
-        head = f"Solution: {correct}"
+        feedback = (
+            "### 📖 Solution Revealed\n\n"
+            f"**Correct Answer:** {correct_letter}. {correct_answer}"
+        )
+
     elif chosen == q.correct_index:
-        head = f"✅ Correct — {correct}"
+        feedback = (
+            "### ✅ Correct Answer!\n\n"
+            "**Excellent work! You selected the correct answer.**\n\n"
+            f"**Answer:** {correct_letter}. {correct_answer}"
+        )
+
     else:
-        head = f"❌ Incorrect. You chose {LETTERS[chosen]}; the answer is {correct}"
-    s = q.source
-    return (f"{head}\n\n{html.escape(q.explanation)}\n\n"
-            f"**Source: {s.doc_name} — {s.location}**\n> {html.escape(s.excerpt)}")
+        chosen_letter = LETTERS[chosen]
+        chosen_answer = html.escape(q.options[chosen])
+
+        feedback = (
+            "### ❌ Incorrect Answer\n\n"
+            f"**Your Answer:** {chosen_letter}. {chosen_answer}\n\n"
+            f"**Correct Answer:** {correct_letter}. {correct_answer}"
+        )
+
+    feedback += (
+        "\n\n### 💡 Explanation\n\n"
+        f"{explanation}\n\n"
+        "---\n\n"
+        "### 📚 Supporting Course Material\n\n"
+        f"**Document:** {html.escape(q.source.doc_name)}\n\n"
+        f"**Location:** {html.escape(q.source.location)}\n\n"
+        f"> {html.escape(q.source.excerpt)}"
+    )
+
+    return feedback
 
 
 def make_quiz(doc_ids, topic, n, progress=gr.Progress()):
