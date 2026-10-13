@@ -163,6 +163,35 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
     seed = seed if seed is not None else int(time.time())
     topic = topic.strip()
 
+        # Load previously validated questions for this topic
+    with _BANK_LOCK:
+        bank_questions = load_question_bank(lib.dir, doc_ids, topic)
+
+    # Randomly select questions when the bank has enough
+    if len(bank_questions) >= n:
+        rng = random.Random(seed)
+        selected = rng.sample(bank_questions, n)
+
+        questions = []
+
+        for i, stored_question in enumerate(selected, start=1):
+            questions.append(
+                stored_question.model_copy(update={"qid": f"q{i}"})
+            )
+
+        return Quiz(
+            quiz_id=uuid.uuid4().hex[:10],
+            created=time.time(),
+            doc_ids=list(doc_ids),
+            doc_names=[
+                lib.docs[d].name for d in doc_ids if d in lib.docs
+            ],
+            topic=topic,
+            questions=questions,
+            answer_key_sha256=answer_key_hash(questions),
+            notes=["Questions selected from the saved question bank."],
+        )
+
     if topic:
         evidence = retrieve(lib, topic, doc_ids, max_evidence=min(4 + n, 12), max_images=3)
     else:
@@ -217,11 +246,44 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
             source=SourceRef(eid=ev.eid, doc_name=ev.page.doc_name, location=ev.page.label,
                              page_id=ev.page_id, excerpt=q.quote.strip(),
                              image_path=ev.page.image_path, kind=ev.kind)))
-    if len(questions) < n:
+       if len(questions) < n:
         notes.append(f"Only {len(questions)} of {n} questions passed validation.")
-    return Quiz(quiz_id=uuid.uuid4().hex[:10], created=time.time(), doc_ids=list(doc_ids),
-                doc_names=[lib.docs[d].name for d in doc_ids if d in lib.docs], topic=topic,
-                questions=questions, answer_key_sha256=answer_key_hash(questions), notes=notes)
+
+    # Save newly generated questions into the reusable question bank.
+    with _BANK_LOCK:
+        existing_questions = load_question_bank(lib.dir, doc_ids, topic)
+
+        existing_texts = {
+            normalize(q.question) for q in existing_questions
+        }
+
+        for question in questions:
+            question_text = normalize(question.question)
+
+            if question_text not in existing_texts:
+                if len(existing_questions) >= MAX_BANK_SIZE:
+                    break
+
+                existing_questions.append(question)
+                existing_texts.add(question_text)
+
+        save_question_bank(
+            lib.dir,
+            doc_ids,
+            topic,
+            existing_questions,
+        )
+
+    return Quiz(
+        quiz_id=uuid.uuid4().hex[:10],
+        created=time.time(),
+        doc_ids=list(doc_ids),
+        doc_names=[lib.docs[d].name for d in doc_ids if d in lib.docs],
+        topic=topic,
+        questions=questions,
+        answer_key_sha256=answer_key_hash(questions),
+        notes=notes,
+    )
 
 # -- question bank ------------------------------------------------------------
 
