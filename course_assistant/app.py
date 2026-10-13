@@ -238,7 +238,64 @@ def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool):
 def build_ui() -> gr.Blocks:
     lib = get_library()
     choices = _doc_choices()
-    with gr.Blocks(title="Course Assistant") as demo:
+
+    # Custom styling for the Course Assistant
+    custom_css = """
+    .gradio-container {
+        max-width: 1200px !important;
+        margin: auto !important;
+        font-size: 17px !important;
+    }
+
+    h1 {
+        font-size: 38px !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.5px;
+    }
+
+    h2 {
+        font-size: 28px !important;
+        font-weight: 700 !important;
+    }
+
+    h3 {
+        font-size: 23px !important;
+        font-weight: 700 !important;
+    }
+
+    button {
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease-in-out;
+    }
+
+    button:hover {
+        transform: translateY(-2px);
+    }
+
+    .quiz-card {
+        border-radius: 16px !important;
+        padding: 20px !important;
+        margin-bottom: 18px !important;
+        border: 1px solid var(--border-color-primary);
+    }
+
+    .quiz-card label {
+        font-size: 17px !important;
+    }
+
+    .quiz-card .prose {
+        line-height: 1.7;
+    }
+    """     with gr.Blocks(
+        title="Course Assistant",
+        css=custom_css
+    ) as demo:
+
+    with gr.Blocks(
+        title="Course Assistant",
+        css=custom_css
+    ) as demo:
         gr.Markdown("# 📚 Course Assistant\nAsk questions about your course materials and practise "
                     "with quizzes. Every answer cites the document and page/slide it came from.")
         with gr.Tab("Ask"):
@@ -267,7 +324,10 @@ def build_ui() -> gr.Blocks:
             score_md = gr.Markdown()
             groups, qmds, radios, fbs, imgs = [], [], [], [], []
             for i in range(MAX_Q):
-                with gr.Group(visible=False) as g:
+                                with gr.Group(
+                    visible=False,
+                    elem_classes="quiz-card"
+                ) as g:
                     qmd = gr.Markdown()
                     radio = gr.Radio(choices=[], label="Your answer")
                     with gr.Row():
