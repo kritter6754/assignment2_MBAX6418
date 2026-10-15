@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hmac
+import os
 import html
 import time
 import logging
@@ -716,7 +717,7 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
             if read_only:
                 gr.Markdown("_The library is read-only here. Documents are added and removed on the "
                             "[online app](https://course-assistant-production-3fbf.up.railway.app) "
-                            "(Library tab, with the library password)._")
+                            "(Library tab)._")
             else:
                 with gr.Row():
                     with gr.Column():
@@ -772,11 +773,9 @@ def main() -> None:
     register_secret(share.password)
     opts = launch_options(share)
     lib = get_library()
-    # Public without a login: library edits are protected by the app password instead.
-    edit_password = share.password if (share.public and "auth" not in opts and not share.read_only) else None
-    if share.public and "auth" not in opts and not share.read_only and not edit_password:
-        raise SystemExit("A public app without a login can only edit the library with APP_PASSWORD set "
-                         "(or set READ_ONLY=true).")
+    # Optional: LIBRARY_PASSWORD protects adding/removing documents (off unless set).
+    edit_password = os.environ.get("LIBRARY_PASSWORD") or None
+    register_secret(edit_password or "")
     demo = build_ui(read_only=share.read_only, edit_password=edit_password)
     if share.share:
         log.info("Creating a public link (up to a week, only while this computer runs the app); "

@@ -102,8 +102,8 @@ The app runs on [Railway](https://railway.com) at https://course-assistant-produ
 
 - **Code deploys automatically.** Railway is connected to this GitHub repo and rebuilds on every push to `main`.
 - **The course library lives only on Railway,** on a storage volume (`/data`). It holds the slide images, extracted text, search indexes and saved quizzes. It is not in GitHub, because the repo is public and the slides are the instructor's.
-- **All library changes happen on the website:** Library tab → enter the **library password** (`APP_PASSWORD`) → Add or Remove. Local runs have Add and Remove turned off (`READ_ONLY=true` in `.env`), so there is only one library to keep track of.
-- **No login page:** anyone with the link can ask questions and take quizzes (`REQUIRE_LOGIN=false` on Railway). Only library changes need the password.
+- **All library changes happen on the website:** Library tab → Add or Remove. Anyone with the link can do this; set a `LIBRARY_PASSWORD` variable on Railway to require a password again. Local runs have Add and Remove turned off (`READ_ONLY=true` in `.env`), so there is only one library to keep track of.
+- **No login page:** anyone with the link can use the app (`REQUIRE_LOGIN=false` on Railway).
 
 | Task | Command |
 |---|---|

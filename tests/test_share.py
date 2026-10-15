@@ -102,3 +102,12 @@ def test_library_password_guards_add_and_remove(monkeypatch, lib):
     assert doc not in lib.docs
     app.build_ui(read_only=False, edit_password=None)  # local: no password needed
     app.remove_doc(next(iter(lib.docs)), None)
+
+
+def test_library_editing_needs_no_password_by_default(monkeypatch, lib):
+    monkeypatch.setattr(app, "get_library", lambda: lib)
+    demo = app.build_ui(read_only=False, edit_password=None)
+    assert not any("Library password" in (getattr(b, "label", "") or "") for b in demo.blocks.values())
+    doc = next(iter(lib.docs))
+    app.remove_doc(doc, None)
+    assert doc not in lib.docs
