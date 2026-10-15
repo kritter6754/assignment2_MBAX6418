@@ -114,6 +114,7 @@ def test_scoreboard_counts_each_check(monkeypatch, lib, fake):
 def test_ask_select_all_ticks_every_document(monkeypatch, lib):
     monkeypatch.setattr(app, "get_library", lambda: lib)
     demo = app.build_ui()
-    assert {"Select all", "Clear"} <= {b.value for b in _components(demo, "Button")}
+    buttons = [b.value for b in _components(demo, "Button")]
+    assert buttons.count("Select all") == 2 and buttons.count("Clear") == 2  # Ask and Quiz tabs
     update = app.select_all_docs()
     assert sorted(update["value"]) == sorted(lib.docs)

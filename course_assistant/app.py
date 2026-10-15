@@ -696,7 +696,11 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
             quiz_progress = gr.State({})
 
             with gr.Row():
-                quiz_docs = gr.CheckboxGroup(choices=choices, label="Material for the quiz")
+                with gr.Column():
+                    quiz_docs = gr.CheckboxGroup(choices=choices, label="Material for the quiz")
+                    with gr.Row(elem_classes=["doc-select-actions"]):
+                        quiz_select_all = gr.Button("Select all", size="sm", scale=0, min_width=110)
+                        quiz_clear_sel = gr.Button("Clear", size="sm", scale=0, min_width=90)
                 with gr.Column():
                     topic = gr.Textbox(label="Topic filter (optional)", placeholder="e.g. KV cache")
                     difficulty = gr.Radio(choices=[("Mixed", "mixed"), ("Easy", "easy"), ("Medium", "medium"),
@@ -729,6 +733,8 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                 finish_outs.append((check, reveal, fb, radio, img))
             quiz_outs = ([quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
                          + figs)
+            quiz_select_all.click(select_all_docs, None, quiz_docs, show_progress="hidden")
+            quiz_clear_sel.click(lambda: gr.update(value=[]), None, quiz_docs, show_progress="hidden")
             # Loading indicator: only our own elapsed-time pill (no Gradio bar or status text).
             gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered, with_images], quiz_outs,
                           show_progress="hidden", js=QUIZ_TIMER_START_JS
