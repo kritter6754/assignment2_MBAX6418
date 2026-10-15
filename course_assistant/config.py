@@ -91,6 +91,9 @@ class ShareSettings:
     read_only: bool  # hide upload/remove so visitors can't change the library
     host: str = "127.0.0.1"  # 0.0.0.0 on a server (e.g. Railway), so it is reachable from outside
     port: int = 7860
+    # REQUIRE_LOGIN=false turns the login page off for a public app (anyone with the link can
+    # use it, and the class API through your key). The library stays read-only.
+    require_login: bool = True
 
     @property
     def public(self) -> bool:
@@ -113,6 +116,7 @@ def load_share_settings(env_file: str | os.PathLike | None = None) -> ShareSetti
         read_only=_flag(os.environ.get("READ_ONLY"), public),  # read-only by default when public
         host=host,
         port=int(os.environ.get("PORT", "7860")),  # Railway sets PORT
+        require_login=_flag(os.environ.get("REQUIRE_LOGIN"), True),
     )
 
 

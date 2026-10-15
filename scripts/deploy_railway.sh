@@ -33,7 +33,8 @@ if [ -z "$VOLUME" ]; then
   exit 1
 fi
 echo "Uploading library to volume $VOLUME ..."
-railway volume files --volume "$VOLUME" upload deploy/build/library /library --overwrite
+# Uploading the folder to "/" replaces /data/library on the volume.
+railway volume files --volume "$VOLUME" upload deploy/build/library / --overwrite
 
 # Restart (no rebuild) so the running app reloads the library from the volume.
 railway restart --yes > /dev/null 2>&1 || railway restart > /dev/null

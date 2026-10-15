@@ -718,11 +718,11 @@ def build_ui(read_only: bool = False) -> gr.Blocks:
 
 def launch_options(s: ShareSettings) -> dict:
     """Keyword arguments for launch(). A public link without a password is refused."""
-    if s.public and not s.password:
-        raise SystemExit("A public app (SHARE=true or HOST=0.0.0.0) needs APP_PASSWORD: without a "
-                         "password anyone could use the class API through your key.")
+    if s.public and s.require_login and not s.password:
+        raise SystemExit("A public app (SHARE=true or HOST=0.0.0.0) needs APP_PASSWORD, or "
+                         "REQUIRE_LOGIN=false to deliberately run it without a login.")
     opts: dict = {"server_name": s.host, "server_port": s.port, "share": s.share, "show_error": False}
-    if s.password:
+    if s.password and s.require_login:
         opts["auth"] = (s.username, s.password)
         opts["auth_message"] = "MBAX 6418 Course Assistant: ask your team for the password."
     return opts
@@ -738,8 +738,10 @@ def main() -> None:
     if share.share:
         log.info("Creating a public link (up to a week, only while this computer runs the app); "
                  "read-only=%s", share.read_only)
-    log.info("Serving on %s:%s (read-only=%s, documents=%d)", share.host, share.port, share.read_only,
-             len(lib.docs))
+    log.info("Serving on %s:%s (read-only=%s, login=%s, documents=%d)", share.host, share.port,
+             share.read_only, "auth" in opts, len(lib.docs))
+    if share.public and "auth" not in opts:
+        log.warning("Public app without a login (REQUIRE_LOGIN=false): anyone with the link can use it.")
     if not lib.docs:
         log.warning("The library at %s is empty. On Railway, upload it with scripts/deploy_railway.sh.",
                     lib.dir)

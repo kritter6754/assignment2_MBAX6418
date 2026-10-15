@@ -64,3 +64,19 @@ def test_host_and_port_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv("PORT", "9999")
     s = load_share_settings(env)
     assert (s.host, s.port, s.read_only) == ("0.0.0.0", 9999, True)
+
+
+def test_login_can_be_turned_off_explicitly(monkeypatch, tmp_path):
+    no_login = ShareSettings(share=False, username="u", password="pw", read_only=True,
+                             host="0.0.0.0", port=8080, require_login=False)
+    opts = app.launch_options(no_login)
+    assert "auth" not in opts and opts["server_name"] == "0.0.0.0"
+    # without a password it still starts, because the login was deliberately turned off
+    app.launch_options(ShareSettings(share=False, username="u", password="", read_only=True,
+                                     host="0.0.0.0", port=8080, require_login=False))
+    env = tmp_path / ".env"
+    env.write_text("")
+    monkeypatch.setenv("REQUIRE_LOGIN", "false")
+    assert load_share_settings(env).require_login is False
+    monkeypatch.delenv("REQUIRE_LOGIN")
+    assert load_share_settings(env).require_login is True  # login stays on by default
