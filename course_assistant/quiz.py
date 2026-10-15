@@ -174,15 +174,15 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
     difficulty = (difficulty or "mixed").strip().lower()
     if difficulty not in DIFFICULTIES:
         raise ValueError(f"Difficulty must be one of {', '.join(DIFFICULTIES)}.")
-    n = max(1, min(n, 15))
+    n = max(1, min(n, 20))
     seed = seed if seed is not None else int(time.time())
     topic = topic.strip()
     excluded = {normalize(q) for q in exclude_questions or []}
 
     if topic:
-        evidence = retrieve(lib, topic, doc_ids, max_evidence=min(4 + n, 12), max_images=3)
+        evidence = retrieve(lib, topic, doc_ids, max_evidence=min(4 + n, 20), max_images=3)
     else:
-        evidence = _sample_evidence(lib, doc_ids, min(4 + n, 12), seed)
+        evidence = _sample_evidence(lib, doc_ids, min(4 + n, 24), seed)
     if not evidence:
         raise ValueError("No usable content found in the selected documents"
                          + (f" for topic '{topic}'." if topic else "."))

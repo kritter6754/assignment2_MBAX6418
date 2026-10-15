@@ -7,7 +7,9 @@ the solution: quizzes are stored server-side and the browser only holds a quiz i
 """
 from __future__ import annotations
 
+import base64
 import html
+import time
 import logging
 from pathlib import Path
 
@@ -15,12 +17,12 @@ import gradio as gr
 
 from . import get_library
 from .answer import AnswerResult, SourceRef, answer_question
-from .config import ACCEPTED_FORMATS, redact, setup_logging
+from .config import ACCEPTED_FORMATS, PROJECT_ROOT, redact, setup_logging
 from .quiz import Quiz, generate_quiz, grade, load_quiz, public_questions, retry_missed, save_quiz
 
 log = logging.getLogger(__name__)
 
-MAX_Q = 10
+MAX_Q = 20
 LETTERS = "ABCD"
 
 STATUS_BADGE = {
@@ -44,6 +46,155 @@ THEME_TOGGLE_JS = f"""
     return dark ? "{TO_LIGHT}" : "{TO_DARK}";
 }}
 """
+
+# -- branding ---------------------------------------------------------------------
+APP_TITLE = "MBAX 6418 - Course Assistant"
+APP_ICON = PROJECT_ROOT / "agentic_icon.png"
+
+
+def _header_html() -> str:
+    """Header with the app icon embedded inline (no file serving needed)."""
+    icon = ""
+    if APP_ICON.exists():
+        data = base64.b64encode(APP_ICON.read_bytes()).decode()
+        icon = f'<img src="data:image/png;base64,{data}" alt="" class="app-logo">'
+    return (f'<div class="app-title-row">{icon}<h1>{html.escape(APP_TITLE)}</h1></div>'
+            '<p>Ask questions about your course materials and practise with quizzes. '
+            'Every answer cites the document and page/slide it came from.</p>')
+
+
+# -- page styling ----------------------------------------------------------------
+# Soft, rounded "card" look: white surfaces with blue accents in light mode, deep navy
+# surfaces with the same blue accents in dark mode. Gradio applies the *_dark values
+# whenever <body> has the `dark` class, which is what the mode toggle switches.
+ACCENT = "#2F6BFF"
+ACCENT_HOVER = "#1F57E6"
+ACCENT_DARK_TEXT = "#8DB0FF"
+
+
+def make_theme() -> gr.themes.Base:
+    return gr.themes.Soft(
+        primary_hue=gr.themes.colors.blue,
+        secondary_hue=gr.themes.colors.blue,
+        neutral_hue=gr.themes.colors.slate,
+        radius_size=gr.themes.sizes.radius_lg,
+        font=[gr.themes.GoogleFont("Inter"), "system-ui", "sans-serif"],
+    ).set(
+        # page and text
+        body_background_fill="#F3F6FC", body_background_fill_dark="#0B1020",
+        body_text_color="#111111", body_text_color_dark="#FFFFFF",
+        body_text_color_subdued="#6B7280", body_text_color_subdued_dark="#A9B3CC",
+        block_title_text_color="#111111", block_label_text_color="#4B5563",
+        link_text_color=ACCENT, link_text_color_dark=ACCENT_DARK_TEXT,
+        # cards
+        block_background_fill="#FFFFFF", block_background_fill_dark="#141A2E",
+        background_fill_primary="#FFFFFF", background_fill_primary_dark="#141A2E",
+        background_fill_secondary="#F7F9FD", background_fill_secondary_dark="#10162A",
+        panel_background_fill="#FFFFFF", panel_background_fill_dark="#141A2E",
+        block_border_width="0px", block_radius="18px", container_radius="18px",
+        block_shadow="0 6px 24px rgba(30, 50, 110, 0.07)",
+        block_shadow_dark="0 6px 24px rgba(0, 0, 0, 0.35)",
+        block_label_background_fill="transparent", block_label_background_fill_dark="transparent",
+        border_color_primary="#E6EBF5", border_color_primary_dark="#232B45",
+        # inputs
+        input_background_fill="#F7F9FD", input_background_fill_dark="#0F1528", input_radius="14px",
+        # buttons
+        button_primary_background_fill=ACCENT, button_primary_background_fill_dark=ACCENT,
+        button_primary_background_fill_hover=ACCENT_HOVER, button_primary_text_color="#FFFFFF",
+        button_secondary_background_fill="#EEF3FF", button_secondary_background_fill_dark="#1C2542",
+        button_secondary_text_color=ACCENT, button_secondary_text_color_dark=ACCENT_DARK_TEXT,
+        button_border_width="0px", button_large_radius="999px", button_small_radius="999px",
+        # accents: checkboxes, radios, sliders
+        color_accent=ACCENT, color_accent_soft="#EEF3FF", color_accent_soft_dark="#1C2542",
+        slider_color=ACCENT, checkbox_background_color_selected=ACCENT,
+        checkbox_label_background_fill="#F7F9FD", checkbox_label_border_width="1px",
+        checkbox_label_background_fill_selected="#EEF3FF",
+        checkbox_label_background_fill_selected_dark="#1C2542",
+        checkbox_label_text_color_selected=ACCENT, checkbox_label_text_color_selected_dark="#FFFFFF",
+        checkbox_label_border_color_selected=ACCENT,
+        # tables and code
+        table_even_background_fill="#FFFFFF", table_odd_background_fill="#F7F9FD",
+        table_even_background_fill_dark="#141A2E", table_odd_background_fill_dark="#10162A",
+        code_background_fill="#F1F4FB", code_background_fill_dark="#0F1528",
+    )
+
+
+CUSTOM_CSS = f"""
+.gradio-container {{ max-width: 1280px !important; margin: 0 auto !important; }}
+
+/* header card: white in light mode, navy in dark mode */
+#app-header {{
+    background: var(--block-background-fill);
+    border-radius: 22px;
+    padding: 18px 24px;
+    align-items: center;
+    box-shadow: var(--block-shadow);
+}}
+#app-header .block, #app-header .prose, #app-header .md {{
+    background: transparent !important; border: none !important; box-shadow: none !important;
+}}
+#app-header .app-title-row {{ display: flex; align-items: center; gap: 14px; }}
+#app-header h1 {{ margin: 0; font-size: 1.75rem; font-weight: 700; color: var(--body-text-color); }}
+#app-header p {{ margin: 4px 0 0; color: var(--body-text-color-subdued); }}
+#app-header .app-logo {{ width: 52px; height: 52px; flex-shrink: 0; }}
+
+#theme-toggle-btn {{ min-width: 150px; }}
+
+/* centred, wide tab bar on its own pill-shaped track */
+[role="tablist"] {{
+    display: flex !important; justify-content: center; gap: 8px;
+    width: fit-content; max-width: 100%; margin: 8px auto 4px !important;
+    background: var(--block-background-fill); border-radius: 999px; padding: 6px !important;
+    box-shadow: var(--block-shadow); border: none !important;
+}}
+button[role="tab"] {{
+    border-radius: 999px !important; padding: 12px 20px !important; min-width: 180px;
+    font-size: 1.05rem !important; font-weight: 600 !important; justify-content: center;
+    border: none !important; color: var(--body-text-color-subdued) !important;
+}}
+@media (max-width: 640px) {{
+    [role="tablist"] {{ width: 100%; }}
+    button[role="tab"] {{ min-width: 0; flex: 1; padding: 10px 8px !important; }}
+}}
+button[role="tab"][aria-selected="true"] {{
+    background: {ACCENT} !important; color: #FFFFFF !important;
+    box-shadow: 0 6px 16px rgba(47, 107, 255, 0.30);
+}}
+button[role="tab"][aria-selected="true"]::after {{ display: none !important; }}
+button[role="tab"]:not([aria-selected="true"]):hover {{ background: var(--color-accent-soft) !important; }}
+
+/* softer, bubblier controls */
+button.lg, button.md {{ font-weight: 600; }}
+button.primary {{ box-shadow: 0 6px 16px rgba(47, 107, 255, 0.30); }}
+label.selected, .wrap label {{ border-radius: 999px !important; }}
+.gr-group, .group {{ border-radius: 18px !important; }}
+.card {{
+    background: var(--block-background-fill); border-radius: 18px; padding: 20px 22px !important;
+    box-shadow: var(--block-shadow);
+}}
+.card .block, .card .prose {{ background: transparent !important; box-shadow: none !important; }}
+.q-card {{ gap: 12px !important; }}
+.q-card p, .q-card strong {{ line-height: 1.5; }}
+.q-actions {{ gap: 10px !important; justify-content: flex-start; }}
+.q-slide, .q-slide .image-container, .q-slide .image-frame {{
+    border: none !important; background: transparent !important; box-shadow: none !important;
+}}
+.q-slide img {{ border-radius: 14px; box-shadow: var(--block-shadow); }}
+.quiz-summary {{ gap: 4px !important; }}
+/* Prior Questions: one card split down the middle */
+.prior-split {{ gap: 0 !important; align-items: stretch; }}
+.prior-split .prior-col {{ padding: 4px 24px !important; min-width: 0; }}
+.prior-split .prior-right {{ border-left: 2px solid var(--border-color-primary); }}
+.prior-split h2 {{ margin: 0 0 8px; font-size: 1.35rem; font-weight: 700; }}
+@media (max-width: 760px) {{
+    .prior-split .prior-right {{ border-left: none; border-top: 2px solid var(--border-color-primary);
+                                padding-top: 16px !important; }}
+}}
+.prose h1, .prose h2, .prose h3 {{ padding-left: 2px; overflow: visible; }}
+table td, table th, table input {{ font-family: var(--font) !important; }}
+img[alt^="[S"] {{ border-radius: 14px !important; border: none !important; box-shadow: var(--block-shadow); }}
+"""
+
 
 THEME_ON_LOAD_JS = f"""
 () => {{
@@ -200,7 +351,56 @@ def _feedback_md(quiz: Quiz, i: int, chosen: int | None) -> str:
             f"**Source: {s.doc_name} — {s.location}**\n> {html.escape(s.excerpt)}")
 
 
-def _mastered_md(mastered: list[str] | None) -> str:
+# -- prior questions (kept in the browser) -----------------------------------------
+def _as_entries(items: list | None) -> list[dict]:
+    """Saved entries are dicts; lists saved by older versions hold plain question strings."""
+    return [i if isinstance(i, dict) else {"question": str(i)} for i in (items or [])]
+
+
+def _entry(q, chosen: int | None) -> dict:
+    return {
+        "question": q.question,
+        "answer": f"{LETTERS[q.correct_index]}. {q.options[q.correct_index]}",
+        "your_answer": f"{LETTERS[chosen]}. {q.options[chosen]}" if chosen is not None else "",
+        "source": f"{q.source.doc_name} — {q.source.location}",
+        "date": time.strftime("%Y-%m-%d"),
+    }
+
+
+def _upsert(items: list[dict], entry: dict) -> list[dict]:
+    """Add `entry`, replacing an older entry for the same question."""
+    return [e for e in items if e["question"] != entry["question"]] + [entry]
+
+
+def _without(items: list[dict], question: str) -> list[dict]:
+    return [e for e in items if e["question"] != question]
+
+
+def _prior_md(items: list | None, kind: str) -> str:
+    entries = _as_entries(items)
+    if not entries:
+        return ("_No missed questions. Questions you get wrong or reveal will show up here._"
+                if kind == "missed" else
+                "_No mastered questions yet. Questions you answer correctly will show up here._")
+    blocks = [f"_{len(entries)} question{'s' if len(entries) != 1 else ''}, newest first_"]
+    for n, e in enumerate(reversed(entries), start=1):
+        lines = [f"**{n}. {html.escape(e['question'])}**"]
+        if e.get("answer"):
+            lines.append(f"✅ Answer: {html.escape(e['answer'])}")
+        if kind == "missed":
+            lines.append(f"❌ Your answer: {html.escape(e['your_answer'])}" if e.get("your_answer")
+                         else "👁️ Solution revealed without answering")
+        if e.get("source"):
+            lines.append(f"📄 {html.escape(e['source'])}")
+        blocks.append("  \n".join(lines))
+    return "\n\n".join(blocks)
+
+
+def _prior_views(missed, mastered) -> tuple[str, str]:
+    return _prior_md(missed, "missed"), _prior_md(mastered, "mastered")
+
+
+def _mastered_md(mastered: list | None) -> str:
     n = len(mastered or [])
     if not n:
         return "_Mastered questions: none yet. Questions you answer correctly won't be asked again._"
@@ -252,7 +452,7 @@ def make_quiz(doc_ids, topic, difficulty, n, mastered, progress=gr.Progress()):
             raise ValueError("Choose at least one document for the quiz.")
         progress(0.2, desc="Retrieving material and writing questions")
         quiz = generate_quiz(lib, doc_ids, topic or "", int(n), difficulty=difficulty,
-                             exclude_questions=list(mastered or []))
+                             exclude_questions=[e["question"] for e in _as_entries(mastered)])
         save_quiz(quiz, lib.dir)
     except Exception as e:
         log.exception("quiz failed")
@@ -274,41 +474,52 @@ def redo_missed(quiz_id, progress):
     return _render_quiz(retry)
 
 
-def reset_mastered():
-    return [], _mastered_md([])
+def clear_missed(mastered):
+    return [], *_prior_views([], mastered)
 
 
-def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool, mastered: list | None):
+def clear_mastered(missed):
+    return [], _mastered_md([]), *_prior_views(missed, [])
+
+
+def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool,
+            mastered: list | None, missed: list | None):
+    """Outputs: progress, feedback, radio, image, score, mastered, mastered count,
+    missed, missed list, mastered list."""
     quiz = _quiz(quiz_id)
-    mastered = list(mastered or [])
+    mastered, missed = _as_entries(mastered), _as_entries(missed)
+    keep = [gr.update()] * 3
     if quiz is None or i >= len(quiz.questions):
-        return progress, gr.update(), gr.update(), gr.update(), gr.update(), mastered, gr.update()
+        return progress, gr.update(), gr.update(), gr.update(), gr.update(), mastered, gr.update(), missed, *keep[:2]
     q = quiz.questions[i]
     progress = dict(progress or {})
     if q.qid in progress:  # already finished: answers are final
-        return progress, gr.update(), gr.update(), gr.update(), _score_md(quiz, progress), mastered, gr.update()
+        return (progress, gr.update(), gr.update(), gr.update(), _score_md(quiz, progress), mastered,
+                gr.update(), missed, *keep[:2])
     if not reveal and not choice:
         return (progress, gr.update(value="Choose an answer first."), gr.update(), gr.update(), gr.update(),
-                mastered, gr.update())
+                mastered, gr.update(), missed, *keep[:2])
     chosen = LETTERS.index(choice[0]) if choice else None  # revealing after picking still grades the pick
     progress[q.qid] = {"chosen": chosen, "revealed": reveal}
-    # Mastered = answered correctly before seeing the solution.
-    if not reveal and chosen == q.correct_index and q.question not in mastered:
-        mastered.append(q.question)
+    # Mastered = answered correctly before seeing the solution; anything else is missed.
+    if not reveal and chosen == q.correct_index:
+        mastered = _upsert(mastered, _entry(q, chosen))
+        missed = _without(missed, q.question)
+    else:
+        missed = _upsert(missed, _entry(q, chosen))
     img = gr.update(value=q.source.image_path, visible=bool(q.source.image_path),
                     label=f"{q.source.doc_name} — {q.source.location}")
     return (progress, _feedback_md(quiz, i, chosen), gr.update(interactive=False), img,
-            _score_md(quiz, progress), mastered, _mastered_md(mastered))
+            _score_md(quiz, progress), mastered, _mastered_md(mastered), missed, *_prior_views(missed, mastered))
 
 
 def build_ui() -> gr.Blocks:
     lib = get_library()
     choices = _doc_choices()
     
-    with gr.Blocks(title="Course Assistant") as demo:
-        with gr.Row():
-            gr.Markdown("# 📚 Course Assistant\nAsk questions about your course materials and practise "
-                        "with quizzes. Every answer cites the document and page/slide it came from.")
+    with gr.Blocks(title=APP_TITLE) as demo:
+        with gr.Row(elem_id="app-header"):
+            gr.HTML(_header_html())
             theme_btn = gr.Button("🌓 Dark / light mode", elem_id="theme-toggle-btn", scale=0)
             theme_btn.click(fn=None, inputs=None, outputs=theme_btn, js=THEME_TOGGLE_JS)
             demo.load(fn=None, inputs=None, outputs=theme_btn, js=THEME_ON_LOAD_JS)
@@ -316,6 +527,7 @@ def build_ui() -> gr.Blocks:
         # the tabs: Gradio only mounts a tab's components when it is opened, and a
         # BrowserState that isn't mounted yet is read as its default ([]) on page load.
         mastered = gr.BrowserState([], storage_key="course-assistant-mastered")
+        missed = gr.BrowserState([], storage_key="course-assistant-missed")
 
         with gr.Tab("Ask"):
             with gr.Row():
@@ -324,8 +536,8 @@ def build_ui() -> gr.Blocks:
                                           placeholder="e.g. Why does RAG use both keyword and vector search?")
                     ask_docs = gr.CheckboxGroup(choices=choices, label="Search in (leave empty for all documents)")
                     ask_btn = gr.Button("Ask", variant="primary")
-                with gr.Column(scale=4):
-                    answer_md = gr.Markdown()
+                with gr.Column(scale=4, elem_classes=["card"]):
+                    answer_md = gr.Markdown("_Your answer and its sources will appear here._")
                     sources_md = gr.Markdown()
             ask_btn.click(ask, [question, ask_docs], [answer_md, sources_md])
             question.submit(ask, [question, ask_docs], [answer_md, sources_md])
@@ -342,34 +554,53 @@ def build_ui() -> gr.Blocks:
                                                    ("Hard", "hard")], value="mixed", label="Difficulty")
                     n_q = gr.Slider(1, MAX_Q, value=5, step=1, label="Number of questions")
                     gen_btn = gr.Button("Generate quiz", variant="primary")
-                    with gr.Row():
-                        redo_btn = gr.Button("Retry missed questions", size="sm")
-                        reset_btn = gr.Button("Reset mastered questions", size="sm")
+                    redo_btn = gr.Button("Retry missed questions", size="sm")
                     mastered_md = gr.Markdown(_mastered_md([]))
-            quiz_header = gr.Markdown()
-            score_md = gr.Markdown()
+            with gr.Column(elem_classes=["card", "quiz-summary"]):
+                quiz_header = gr.Markdown("_Choose material and press **Generate quiz** to start._")
+                score_md = gr.Markdown()
             groups, qmds, radios, fbs, imgs = [], [], [], [], []
+            finish_outs = []
             for i in range(MAX_Q):
-                with gr.Group(visible=False) as g:
+                with gr.Column(visible=False, elem_classes=["card", "q-card"]) as g:
                     qmd = gr.Markdown()
                     radio = gr.Radio(choices=[], label="Your answer")
-                    with gr.Row():
-                        check = gr.Button("Check answer", size="sm", variant="primary")
-                        reveal = gr.Button("Show solution", size="sm")
+                    with gr.Row(elem_classes=["q-actions"]):
+                        check = gr.Button("Check answer", size="sm", variant="primary", scale=0, min_width=150)
+                        reveal = gr.Button("Show solution", size="sm", scale=0, min_width=150)
                     fb = gr.Markdown()
-                    img = gr.Image(visible=False, interactive=False, height=320, show_label=True)
+                    img = gr.Image(visible=False, interactive=False, height=340, show_label=False,
+                                   elem_classes=["q-slide"])
                 groups.append(g); qmds.append(qmd); radios.append(radio); fbs.append(fb); imgs.append(img)
-                outs = [quiz_progress, fb, radio, img, score_md, mastered, mastered_md]
-                check.click(lambda qid, prog, ch, m, i=i: _finish(i, qid, prog, ch, False, m),
-                            [quiz_id, quiz_progress, radio, mastered], outs)
-                reveal.click(lambda qid, prog, ch, m, i=i: _finish(i, qid, prog, ch, True, m),
-                             [quiz_id, quiz_progress, radio, mastered], outs)
+                finish_outs.append((check, reveal, fb, radio, img))
             quiz_outs = [quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
             gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs)
             redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs)
-            reset_btn.click(reset_mastered, None, [mastered, mastered_md])
             demo.load(_mastered_md, [mastered], [mastered_md])
             quiz_tab.select(_mastered_md, [mastered], [mastered_md])
+
+        with gr.Tab("Prior Questions") as prior_tab:
+            with gr.Row(elem_classes=["card", "prior-split"], equal_height=False):
+                with gr.Column(elem_classes=["prior-col"]):
+                    gr.Markdown("## Missed Questions")
+                    missed_list = gr.Markdown(_prior_md([], "missed"))
+                    clear_missed_btn = gr.Button("Clear missed questions", size="sm", scale=0, min_width=200)
+                with gr.Column(elem_classes=["prior-col", "prior-right"]):
+                    gr.Markdown("## Mastered Questions")
+                    mastered_list = gr.Markdown(_prior_md([], "mastered"))
+                    clear_mastered_btn = gr.Button("Clear mastered questions", size="sm", scale=0, min_width=200)
+            prior_tab.select(_prior_views, [missed, mastered], [missed_list, mastered_list])
+            demo.load(_prior_views, [missed, mastered], [missed_list, mastered_list])
+            clear_missed_btn.click(clear_missed, [mastered], [missed, missed_list, mastered_list])
+            clear_mastered_btn.click(clear_mastered, [missed], [mastered, mastered_md, missed_list, mastered_list])
+
+        # Check / reveal buttons update the quiz card, the score, and both prior-question lists.
+        for i, (check, reveal, fb, radio, img) in enumerate(finish_outs):
+            outs = [quiz_progress, fb, radio, img, score_md, mastered, mastered_md, missed,
+                    missed_list, mastered_list]
+            ins = [quiz_id, quiz_progress, radio, mastered, missed]
+            check.click(lambda qid, prog, ch, m, ms, i=i: _finish(i, qid, prog, ch, False, m, ms), ins, outs)
+            reveal.click(lambda qid, prog, ch, m, ms, i=i: _finish(i, qid, prog, ch, True, m, ms), ins, outs)
 
         with gr.Tab("Library"):
             with gr.Row():
@@ -378,7 +609,7 @@ def build_ui() -> gr.Blocks:
                                      file_types=list(ACCEPTED_FORMATS))
                     add_btn = gr.Button("Add to library", variant="primary")
                     add_log = gr.Textbox(label="Status", lines=4, interactive=False)
-                with gr.Column():
+                with gr.Column(elem_classes=["card"]):
                     gr.Markdown(accepted_formats_md())
             table = gr.Dataframe(value=_doc_table(), label=f"Library ({len(lib.docs)} documents at start-up)",
                                  headers=["File", "Type", "Pages", "Unit", "Images", "Warnings"],
@@ -406,7 +637,8 @@ def main() -> None:
     lib = get_library()
     demo = build_ui()
     demo.queue().launch(server_name="127.0.0.1", allowed_paths=[str(lib.dir)], show_error=False,
-                        theme=gr.themes.Default())
+                        theme=make_theme(), css=CUSTOM_CSS,
+                        favicon_path=str(APP_ICON) if APP_ICON.exists() else None)
 
 
 if __name__ == "__main__":
