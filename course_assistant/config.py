@@ -80,6 +80,42 @@ def load_settings(env_file: str | os.PathLike | None = None) -> Settings:
     )
 
 
+@dataclass(frozen=True)
+class ShareSettings:
+    """How the interface is served. SHARE=true creates a temporary public *.gradio.live link
+    (Gradio keeps it up to a week, best effort, and only while this computer runs the app); a password is then required."""
+
+    share: bool
+    username: str
+    password: str = field(repr=False)
+    read_only: bool  # hide upload/remove so visitors can't change the library
+    host: str = "127.0.0.1"  # 0.0.0.0 on a server (e.g. Railway), so it is reachable from outside
+    port: int = 7860
+
+    @property
+    def public(self) -> bool:
+        return self.share or self.host not in ("127.0.0.1", "localhost")
+
+
+def _flag(value: str | None, default: bool) -> bool:
+    return default if value is None or value == "" else value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def load_share_settings(env_file: str | os.PathLike | None = None) -> ShareSettings:
+    load_dotenv(env_file or PROJECT_ROOT / ".env", override=False)
+    share = _flag(os.environ.get("SHARE"), False)
+    host = os.environ.get("HOST", "127.0.0.1")
+    public = share or host not in ("127.0.0.1", "localhost")
+    return ShareSettings(
+        share=share,
+        username=os.environ.get("APP_USERNAME", "mbax"),
+        password=os.environ.get("APP_PASSWORD", ""),
+        read_only=_flag(os.environ.get("READ_ONLY"), public),  # read-only by default when public
+        host=host,
+        port=int(os.environ.get("PORT", "7860")),  # Railway sets PORT
+    )
+
+
 _SECRETS: set[str] = set()
 
 
@@ -99,7 +135,7 @@ class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = redact(str(record.msg))
         if record.args:
-            record.args = tuple(redact(str(a)) for a in record.args)
+            record.args = tuple(redact(a) if isinstance(a, str) else a for a in record.args)
         return True
 
 

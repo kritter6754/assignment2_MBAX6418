@@ -17,7 +17,8 @@ import gradio as gr
 
 from . import get_library
 from .answer import AnswerResult, SourceRef, answer_question
-from .config import ACCEPTED_FORMATS, PROJECT_ROOT, redact, setup_logging
+from .config import (ACCEPTED_FORMATS, PROJECT_ROOT, ShareSettings, load_share_settings, redact,
+                     register_secret, setup_logging)
 from .quiz import Quiz, generate_quiz, load_quiz, public_questions, retry_missed, save_quiz
 
 log = logging.getLogger(__name__)
@@ -586,7 +587,8 @@ def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool,
             _score_md(quiz, progress), mastered, _mastered_md(mastered), missed, *_prior_views(missed, mastered))
 
 
-def build_ui() -> gr.Blocks:
+def build_ui(read_only: bool = False) -> gr.Blocks:
+    """read_only=True leaves out upload and remove entirely, so visitors can't change the library."""
     lib = get_library()
     choices = _doc_choices()
     
@@ -679,20 +681,25 @@ def build_ui() -> gr.Blocks:
             reveal.click(lambda qid, prog, ch, m, ms, i=i: _finish(i, qid, prog, ch, True, m, ms), ins, outs)
 
         with gr.Tab("Library"):
-            with gr.Row():
-                with gr.Column():
-                    upload = gr.File(label="Add course files", file_count="multiple",
-                                     file_types=list(ACCEPTED_FORMATS))
-                    add_btn = gr.Button("Add to library", variant="primary")
-                    add_log = gr.Textbox(label="Status", lines=4, interactive=False)
-                with gr.Column(elem_classes=["card"]):
-                    gr.Markdown(accepted_formats_md())
+            if read_only:
+                gr.Markdown("_This shared copy is read-only: browse the documents below; "
+                            "adding or removing files is turned off._")
+            else:
+                with gr.Row():
+                    with gr.Column():
+                        upload = gr.File(label="Add course files", file_count="multiple",
+                                         file_types=list(ACCEPTED_FORMATS))
+                        add_btn = gr.Button("Add to library", variant="primary")
+                        add_log = gr.Textbox(label="Status", lines=4, interactive=False)
+                    with gr.Column(elem_classes=["card"]):
+                        gr.Markdown(accepted_formats_md())
             table = gr.Dataframe(value=_doc_table(), label=f"Library ({len(lib.docs)} documents at start-up)",
                                  headers=["File", "Type", "Pages", "Unit", "Images", "Warnings"],
                                  interactive=False, wrap=True)
-            with gr.Row():
-                rm_doc = gr.Dropdown(choices=choices, value=None, label="Remove a document")
-                rm_btn = gr.Button("Remove", variant="stop")
+            if not read_only:
+                with gr.Row():
+                    rm_doc = gr.Dropdown(choices=choices, value=None, label="Remove a document")
+                    rm_btn = gr.Button("Remove", variant="stop")
             gr.Markdown("### Browse a document\nSee exactly what was extracted from each page or slide.")
             with gr.Row():
                 view_doc = gr.Dropdown(choices=choices, value=None, label="Document")
@@ -700,21 +707,42 @@ def build_ui() -> gr.Blocks:
             with gr.Row():
                 view_img = gr.Image(interactive=False, label="Original", height=360)
                 view_txt = gr.Textbox(label="Extracted text", lines=16, max_lines=30, interactive=False)
-            add_btn.click(add_files, [upload], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc])
-            rm_btn.click(remove_doc, [rm_doc], [table, rm_doc, ask_docs, quiz_docs, view_doc])
+            if not read_only:
+                add_btn.click(add_files, [upload], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc])
+                rm_btn.click(remove_doc, [rm_doc], [table, rm_doc, ask_docs, quiz_docs, view_doc])
             view_doc.change(show_page, [view_doc, view_n], [view_img, view_txt])
             view_n.change(show_page, [view_doc, view_n], [view_img, view_txt])
             
     return demo
 
 
+def launch_options(s: ShareSettings) -> dict:
+    """Keyword arguments for launch(). A public link without a password is refused."""
+    if s.public and not s.password:
+        raise SystemExit("A public app (SHARE=true or HOST=0.0.0.0) needs APP_PASSWORD: without a "
+                         "password anyone could use the class API through your key.")
+    opts: dict = {"server_name": s.host, "server_port": s.port, "share": s.share, "show_error": False}
+    if s.password:
+        opts["auth"] = (s.username, s.password)
+        opts["auth_message"] = "MBAX 6418 Course Assistant: ask your team for the password."
+    return opts
+
+
 def main() -> None:
     setup_logging()
+    share = load_share_settings()
+    register_secret(share.password)
+    opts = launch_options(share)
     lib = get_library()
-    demo = build_ui()
-    demo.queue().launch(server_name="127.0.0.1", allowed_paths=[str(lib.dir)], show_error=False,
-                        theme=make_theme(), css=CUSTOM_CSS,
-                        favicon_path=str(APP_ICON) if APP_ICON.exists() else None)
+    demo = build_ui(read_only=share.read_only)
+    if share.share:
+        log.info("Creating a public link (up to a week, only while this computer runs the app); "
+                 "read-only=%s", share.read_only)
+    log.info("Serving on %s:%s (read-only=%s, documents=%d)", share.host, share.port, share.read_only,
+             len(lib.docs))
+    demo.queue(default_concurrency_limit=4).launch(
+        allowed_paths=[str(lib.dir)], theme=make_theme(), css=CUSTOM_CSS,
+        favicon_path=str(APP_ICON) if APP_ICON.exists() else None, **opts)
 
 
 if __name__ == "__main__":

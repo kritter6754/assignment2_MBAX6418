@@ -59,11 +59,33 @@ class Library:
             d = self._doc_dir(doc_id)
             for p in json.loads((d / "pages.json").read_text()):
                 page = Page(**p)
+                page.image_path = self._resolve(page.image_path)
                 self.pages[page.page_id] = page
             for c in json.loads((d / "chunks.json").read_text()):
                 chunk = Chunk(**c)
                 self.chunks[chunk.chunk_id] = chunk
         self._rebuild_bm25()
+
+    # Image paths are stored relative to the data dir, so a library built on one machine
+    # works when copied elsewhere (e.g. bundled into the server image).
+    def _portable(self, path: str | None) -> str | None:
+        if not path:
+            return path
+        try:
+            return str(Path(path).resolve().relative_to(self.dir.resolve()))
+        except ValueError:
+            return path
+
+    def _resolve(self, path: str | None) -> str | None:
+        if not path:
+            return path
+        p = Path(path)
+        if not p.is_absolute():
+            return str(self.dir / p)
+        if p.exists():
+            return path
+        # Absolute path from another machine (older libraries): re-root .../pages/<doc>/<file>.
+        return str(self.dir.joinpath(*p.parts[-3:])) if "pages" in p.parts else path
 
     def _save_manifest(self) -> None:
         self._manifest_path.write_text(json.dumps({k: v.model_dump() for k, v in self.docs.items()}, indent=1))
@@ -99,7 +121,8 @@ class Library:
             d = self._doc_dir(info.doc_id)
             d.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, d / ("original" + info.ext))
-            (d / "pages.json").write_text(json.dumps([p.model_dump() for p in pages], indent=1))
+            (d / "pages.json").write_text(json.dumps(
+                [{**p.model_dump(), "image_path": self._portable(p.image_path)} for p in pages], indent=1))
             (d / "chunks.json").write_text(json.dumps([c.model_dump() for c in chunks], indent=1))
             if chunks:
                 self._text.upsert(
