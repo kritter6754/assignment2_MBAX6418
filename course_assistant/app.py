@@ -223,6 +223,7 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
 .q-card {{ gap: 12px !important; }}
 .q-card p, .q-card strong {{ line-height: 1.5; }}
 .q-actions {{ gap: 10px !important; justify-content: flex-start; }}
+.doc-select-actions {{ gap: 10px !important; justify-content: flex-start; }}
 .q-slide, .q-slide .image-container, .q-slide .image-frame {{
     border: none !important; background: transparent !important; box-shadow: none !important;
 }}
@@ -361,6 +362,12 @@ def remove_doc(doc_id, password=None):
     choices = _doc_choices()
     return (_doc_table(), gr.update(choices=choices, value=None), gr.update(choices=choices),
             gr.update(choices=choices), gr.update(choices=choices, value=None))
+
+
+def select_all_docs():
+    """Tick every document currently in the library."""
+    choices = _doc_choices()
+    return gr.update(choices=choices, value=[doc_id for _, doc_id in choices])
 
 
 def show_page(doc_id, number):
@@ -654,10 +661,15 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                     question = gr.Textbox(label="Your question", lines=2,
                                           placeholder="e.g. Why does RAG use both keyword and vector search?")
                     ask_docs = gr.CheckboxGroup(choices=choices, label="Search in (leave empty for all documents)")
+                    with gr.Row(elem_classes=["doc-select-actions"]):
+                        select_all_btn = gr.Button("Select all", size="sm", scale=0, min_width=110)
+                        clear_sel_btn = gr.Button("Clear", size="sm", scale=0, min_width=90)
                     ask_btn = gr.Button("Ask", variant="primary")
                 with gr.Column(scale=4, elem_classes=["card"]):
                     answer_md = gr.Markdown("_Your answer and its sources will appear here._")
                     sources_md = gr.Markdown()
+            select_all_btn.click(select_all_docs, None, ask_docs, show_progress="hidden")
+            clear_sel_btn.click(lambda: gr.update(value=[]), None, ask_docs, show_progress="hidden")
             ask_btn.click(ask, [question, ask_docs], [answer_md, sources_md])
             question.submit(ask, [question, ask_docs], [answer_md, sources_md])
 

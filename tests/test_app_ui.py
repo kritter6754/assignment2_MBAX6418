@@ -109,3 +109,11 @@ def test_scoreboard_counts_each_check(monkeypatch, lib, fake):
     out = app._finish(2, quiz.quiz_id, out[0], f"{app.LETTERS[q3.correct_index]}. x", True, out[5], out[7])
     assert pills(out[4]) == {"Score": "1 / 3", "Correct": "1", "Incorrect": "2", "Questions finished": "3 / 3"}
     assert "Quiz complete" in out[4] and "1 solution revealed" in out[4]
+
+
+def test_ask_select_all_ticks_every_document(monkeypatch, lib):
+    monkeypatch.setattr(app, "get_library", lambda: lib)
+    demo = app.build_ui()
+    assert {"Select all", "Clear"} <= {b.value for b in _components(demo, "Button")}
+    update = app.select_all_docs()
+    assert sorted(update["value"]) == sorted(lib.docs)
