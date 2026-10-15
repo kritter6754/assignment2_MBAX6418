@@ -740,6 +740,9 @@ def main() -> None:
                  "read-only=%s", share.read_only)
     log.info("Serving on %s:%s (read-only=%s, documents=%d)", share.host, share.port, share.read_only,
              len(lib.docs))
+    if not lib.docs:
+        log.warning("The library at %s is empty. On Railway, upload it with scripts/deploy_railway.sh.",
+                    lib.dir)
     demo.queue(default_concurrency_limit=4).launch(
         allowed_paths=[str(lib.dir)], theme=make_theme(), css=CUSTOM_CSS,
         favicon_path=str(APP_ICON) if APP_ICON.exists() else None, **opts)

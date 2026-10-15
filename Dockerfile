@@ -1,5 +1,6 @@
-# Server image for the always-on app (built by Railway from the folder made by
-# scripts/build_deploy_bundle.py, which adds the prepared library/ next to this file).
+# Server image for the always-on app. Railway builds it from GitHub on every push to main.
+# The prepared library (slide images, extracted text, search indexes) is NOT in the image or
+# the repo: it lives on a Railway volume mounted at /data, uploaded by scripts/deploy_railway.sh.
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
@@ -13,9 +14,6 @@ COPY course_assistant ./course_assistant
 COPY agentic_icon.png ./
 RUN uv sync --frozen --no-dev
 
-# Prepared library: slide images, extracted text, and the search indexes.
-COPY library ./library
-
 # Secrets (CLASS_API_KEY, endpoint URLs, APP_PASSWORD) come from Railway variables, never the image.
-ENV DATA_DIR=/app/library HOST=0.0.0.0 PYTHONUNBUFFERED=1 GRADIO_ANALYTICS_ENABLED=False
+ENV DATA_DIR=/data/library HOST=0.0.0.0 PYTHONUNBUFFERED=1 GRADIO_ANALYTICS_ENABLED=False
 CMD ["uv", "run", "--no-sync", "course-assistant"]
