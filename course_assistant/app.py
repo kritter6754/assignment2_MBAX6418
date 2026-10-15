@@ -66,33 +66,45 @@ def _header_html() -> str:
             'Every answer cites the document and page/slide it came from.</p>')
 
 
-# -- quiz loading timer -----------------------------------------------------------
-# Shows only the elapsed time (e.g. "⏳ 4.2s") once, at the top of the quiz card, while a
-# quiz is being generated. Runs in the browser before the request; the inputs are passed
-# through unchanged. QUIZ_TIMER_STOP_JS runs after the request finishes.
-QUIZ_TIMER_START_JS = """
-(...args) => {
-    const card = document.querySelector('.quiz-summary');
-    if (window.__quizTimer) clearInterval(window.__quizTimer);
-    document.querySelectorAll('.quiz-timer').forEach(e => e.remove());
-    if (card) {
+# -- loading timers -------------------------------------------------------------
+# A small "⏳ 4.2s" pill that counts up while something slow runs (quiz generation,
+# adding course files). It runs in the browser before the request, passes the inputs
+# through unchanged, and TIMER_STOP_JS removes it when the request finishes.
+def timer_start_js(target: str, place: str = "prepend") -> str:
+    """`target` is a CSS selector; the pill goes inside it at the top ("prepend") or just
+    above it ("before")."""
+    insert = "t.prepend(el)" if place == "prepend" else "t.parentElement.insertBefore(el, t)"
+    return f"""
+(...args) => {{
+    if (window.__loadTimer) clearInterval(window.__loadTimer);
+    document.querySelectorAll('.loading-timer').forEach(e => e.remove());
+    const t = document.querySelector('{target}');
+    if (t) {{
         const el = document.createElement('div');
-        el.className = 'quiz-timer';
-        card.prepend(el);
+        el.className = 'loading-timer';
+        {insert};
         const t0 = performance.now();
-        const tick = () => { el.textContent = '⏳ ' + ((performance.now() - t0) / 1000).toFixed(1) + 's'; };
+        const tick = () => {{
+            const s = (performance.now() - t0) / 1000;
+            el.textContent = '⏳ ' + (s < 60 ? s.toFixed(1) + 's'
+                : Math.floor(s / 60) + 'm ' + String(Math.floor(s % 60)).padStart(2, '0') + 's');
+        }};
         tick();
-        window.__quizTimer = setInterval(tick, 100);
-    }
+        window.__loadTimer = setInterval(tick, 100);
+    }}
     return args;
-}
+}}
 """
 
-QUIZ_TIMER_STOP_JS = """
+
+QUIZ_TIMER_START_JS = timer_start_js(".quiz-summary", "prepend")
+UPLOAD_TIMER_START_JS = timer_start_js("#add-status", "prepend")
+
+TIMER_STOP_JS = """
 () => {
-    if (window.__quizTimer) clearInterval(window.__quizTimer);
-    window.__quizTimer = null;
-    document.querySelectorAll('.quiz-timer').forEach(e => e.remove());
+    if (window.__loadTimer) clearInterval(window.__loadTimer);
+    window.__loadTimer = null;
+    document.querySelectorAll('.loading-timer').forEach(e => e.remove());
 }
 """
 
@@ -220,14 +232,14 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
 .q-title, .q-title .prose {{ overflow: visible !important; border-radius: 0 !important; }}
 .q-title {{ padding: 4px 6px 0 !important; }}
 .q-title p, .q-title strong {{ font-size: 0.93rem !important; line-height: 1.5; }}
-/* quiz loading timer */
+/* loading timer pill (quiz generation, adding files) */
 /* Gradio still draws its status text for show_progress="hidden" events; hide it. */
-.quiz-summary .wrap.hidden, .quiz-summary .wrap.hidden .progress-text {{ display: none !important; }}
-.quiz-timer {{
+.wrap.hidden, .wrap.hidden .progress-text {{ display: none !important; }}
+.loading-timer {{
     align-self: flex-start; width: fit-content; padding: 6px 14px; border-radius: 999px; font-weight: 600;
     background: var(--color-accent-soft); color: {ACCENT}; font-variant-numeric: tabular-nums;
 }}
-.dark .quiz-timer {{ color: {ACCENT_DARK_TEXT}; }}
+.dark .loading-timer {{ color: {ACCENT_DARK_TEXT}; }}
 /* live scoreboard */
 .scoreboard {{ display: flex; flex-wrap: wrap; gap: 10px; }}
 .score-pill {{
@@ -317,7 +329,7 @@ def _password_ok(password: str | None) -> bool:
     return False
 
 
-def add_files(files, password=None, progress=gr.Progress()):
+def add_files(files, password=None):
     if not _password_ok(password):
         return (f"✗ {WRONG_PASSWORD}",) + (gr.update(),) * 5
     lib = get_library()
@@ -329,8 +341,7 @@ def add_files(files, password=None, progress=gr.Progress()):
             msgs.append(f"✗ {name}: unsupported format ({path.suffix or 'no extension'})")
             continue
         try:
-            progress(0, desc=f"Processing {name}")
-            info = lib.add_file(path, name=name, progress=lambda m: progress(0.5, desc=m))
+            info = lib.add_file(path, name=name, progress=lambda m: log.info("%s", m))
             msgs.append(f"✓ {info.name}: {info.num_pages} {info.kind}s")
             msgs += [f"   warning: {w}" for w in info.warnings]
         except Exception as e:
@@ -685,7 +696,7 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
             # Loading indicator: only our own elapsed-time pill (no Gradio bar or status text).
             gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs,
                           show_progress="hidden", js=QUIZ_TIMER_START_JS
-                          ).then(fn=None, js=QUIZ_TIMER_STOP_JS)
+                          ).then(fn=None, js=TIMER_STOP_JS)
             redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs, show_progress="hidden")
             demo.load(_mastered_md, [mastered], [mastered_md])
             quiz_tab.select(_mastered_md, [mastered], [mastered_md])
@@ -724,7 +735,7 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                         upload = gr.File(label="Add course files", file_count="multiple",
                                          file_types=list(ACCEPTED_FORMATS))
                         add_btn = gr.Button("Add to library", variant="primary")
-                        add_log = gr.Textbox(label="Status", lines=4, interactive=False)
+                        add_log = gr.Textbox(label="Status", lines=4, interactive=False, elem_id="add-status")
                     with gr.Column(elem_classes=["card"]):
                         gr.Markdown(accepted_formats_md())
             table = gr.Dataframe(value=_doc_table(), label=f"Library ({len(lib.docs)} documents at start-up)",
@@ -747,7 +758,10 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                 view_img = gr.Image(interactive=False, label="Original", height=360)
                 view_txt = gr.Textbox(label="Extracted text", lines=16, max_lines=30, interactive=False)
             if not read_only:
-                add_btn.click(add_files, [upload, lib_pw], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc])
+                # Loading indicator: only the elapsed-time pill above Status (no Gradio bar).
+                add_btn.click(add_files, [upload, lib_pw], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc],
+                              show_progress="hidden", js=UPLOAD_TIMER_START_JS
+                              ).then(fn=None, js=TIMER_STOP_JS)
                 rm_btn.click(remove_doc, [rm_doc, lib_pw], [table, rm_doc, ask_docs, quiz_docs, view_doc])
             view_doc.change(show_page, [view_doc, view_n], [view_img, view_txt])
             view_n.change(show_page, [view_doc, view_n], [view_img, view_txt])
