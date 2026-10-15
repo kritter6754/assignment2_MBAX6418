@@ -153,3 +153,93 @@ def test_clean_ocr_flattens_tables_and_markdown():
 
     raw = "**Table 4**\n<table><tr><td>Method</td><td>Acronym</td></tr><tr><td>Chain-of-Thought</td><td>CoT</td></tr></table>"
     assert clean_ocr(raw) == "Table 4\nMethod | Acronym\nChain-of-Thought | CoT"
+
+
+def _deck_with_picture_and_video(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    gif = tmp_path / "anim.gif"
+    def striped(color):  # pictures need visible content (a flat colour counts as "no content")
+        im = Image.new("RGB", (100, 60), color)
+        for x in range(0, 100, 10):
+            im.paste((255, 255, 255), (x, 0, x + 3, 60))
+        return im
+    frames = [striped(c) for c in ("blue", "red", "yellow")]  # middle frame is red
+    frames[0].save(gif, save_all=True, append_images=frames[1:], duration=100, loop=0)  # animated GIF
+    poster = tmp_path / "poster.png"
+    striped("green").save(poster)
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"\\x00" * 64)
+
+    prs = Presentation()
+    s1 = prs.slides.add_slide(prs.slide_layouts[5])
+    s1.shapes.title.text = "Slide with an animated GIF"
+    s1.shapes.add_picture(str(gif), Inches(1), Inches(2), Inches(4), Inches(2.4))
+    s2 = prs.slides.add_slide(prs.slide_layouts[5])
+    s2.shapes.title.text = "Slide with a video"
+    s2.shapes.add_movie(str(video), Inches(5), Inches(2), Inches(4), Inches(2.4),
+                        poster_frame_image=str(poster), mime_type="video/mp4")
+    path = tmp_path / "media.pptx"
+    prs.save(path)
+    return path, prs
+
+
+def test_blank_media_areas_are_filled_and_reported(tmp_path):
+    from course_assistant.ingest import repair_pptx_renders
+
+    deck, prs = _deck_with_picture_and_video(tmp_path)
+    w = 1280
+    h = int(w * prs.slide_height / prs.slide_width)
+    blank = []
+    for i in range(2):  # simulate LibreOffice leaving the media areas blank (all white)
+        p = tmp_path / f"render{i}.png"
+        Image.new("RGB", (w, h), "white").save(p)
+        blank.append(str(p))
+    notes, warnings = repair_pptx_renders(deck, blank)
+
+    scale = w / prs.slide_width
+    from pptx.util import Inches
+    def colours(path, left_in):  # distinct colours inside the pasted area
+        im = Image.open(path).convert("RGB")
+        box = (int(Inches(left_in) * scale), int(Inches(2) * scale),
+               int(Inches(left_in + 4) * scale), int(Inches(4.4) * scale))
+        return {c for _, c in im.crop(box).getcolors(1_000_000)}
+    assert any(r > 200 and g < 60 for r, g, b in colours(blank[0], 1))   # middle GIF frame (red) pasted in
+    assert any(g > 100 and r < 60 for r, g, b in colours(blank[1], 5))   # video poster (green) pasted in
+    assert len(warnings) == 2 and "animated GIF or video" in warnings[0]
+    assert 2 in notes and "embedded video" in notes[2] and 1 not in notes
+
+
+def test_flat_pictures_are_not_mistaken_for_failed_renders(tmp_path):
+    """A mostly-white chart or logo legitimately renders as a near-uniform area."""
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    from course_assistant.ingest import repair_pptx_renders
+
+    white = tmp_path / "white.png"
+    Image.new("RGB", (100, 60), "white").save(white)
+    prs = Presentation()
+    prs.slides.add_slide(prs.slide_layouts[6]).shapes.add_picture(str(white), Inches(1), Inches(1), Inches(4))
+    deck = tmp_path / "flat.pptx"
+    prs.save(deck)
+    render = tmp_path / "r.png"
+    Image.new("RGB", (1280, 960), "white").save(render)
+    assert repair_pptx_renders(deck, [str(render)])[1] == []
+
+
+def test_areas_that_rendered_fine_are_left_alone(tmp_path):
+    from course_assistant.ingest import repair_pptx_renders
+
+    deck, prs = _deck_with_picture_and_video(tmp_path)
+    w = 1280
+    h = int(w * prs.slide_height / prs.slide_width)
+    renders = []
+    for i in range(2):  # a "busy" render everywhere: noise, so no area is blank
+        p = tmp_path / f"busy{i}.png"
+        Image.effect_noise((w, h), 80).convert("RGB").save(p)
+        renders.append(str(p))
+    before = [Image.open(r).tobytes() for r in renders]
+    _, warnings = repair_pptx_renders(deck, renders)
+    assert warnings == [] and [Image.open(r).tobytes() for r in renders] == before

@@ -45,3 +45,24 @@ def test_ocr(svc, tmp_path):
     ImageDraw.Draw(im).text((10, 40), "HELLO COURSE", fill="black")
     im.save(img)
     assert "HELLO" in svc.ocr(str(img)).upper()
+
+
+def test_scanned_pdf_is_read_with_ocr(svc, tmp_path):
+    """Issue #4: a PDF with no text layer (a scan) is OCR'd page by page."""
+    from PIL import ImageDraw, ImageFilter
+
+    from course_assistant.ingest import ingest_file
+
+    page = Image.new("L", (1700, 2200), 255)
+    draw = ImageDraw.Draw(page)
+    lines = ["Course Syllabus", "Late work loses ten percent per day.", "The final exam is on December 12."]
+    for i, line in enumerate(lines):
+        draw.text((150, 300 + i * 120), line, fill=0, font_size=56)
+    page = page.rotate(0.8, fillcolor=245).filter(ImageFilter.GaussianBlur(0.6))  # scanner tilt and blur
+    pdf = tmp_path / "scan.pdf"
+    page.convert("RGB").save(pdf, resolution=200)
+
+    info, pages = ingest_file(pdf, tmp_path / "data", services=svc)
+    assert pages[0].ocr
+    text = pages[0].text.lower()
+    assert "late work" in text and "december" in text

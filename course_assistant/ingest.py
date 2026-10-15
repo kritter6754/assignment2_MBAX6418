@@ -153,6 +153,88 @@ def pptx_slide_texts(path: Path) -> list[tuple[str, str]]:
     return out
 
 
+BLANK_STDDEV = 4.0  # a rendered area this uniform (0-255 grey) is treated as "not drawn"
+
+
+def repair_pptx_renders(pptx_path: Path, image_paths: list[str]) -> tuple[dict[int, str], list[str]]:
+    """Fill in slide areas LibreOffice left blank.
+
+    LibreOffice cannot draw some embedded media (e.g. animated GIFs) and leaves an empty box.
+    For every picture and video on a slide, if its area in the rendered image is blank, the
+    picture (first frame of a GIF) or the video's poster image is pasted there.
+    Returns ({slide number: text note}, warnings).
+    """
+    import io
+
+    from PIL import Image, ImageStat
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    prs = Presentation(str(pptx_path))
+    notes: dict[int, str] = {}
+    warnings: list[str] = []
+
+    def shapes_of(container):
+        for sh in container:
+            if sh.shape_type == MSO_SHAPE_TYPE.GROUP:
+                yield from shapes_of(sh.shapes)
+            else:
+                yield sh
+
+    for number, (slide, img_path) in enumerate(zip(prs.slides, image_paths), start=1):
+        img = Image.open(img_path).convert("RGB")
+        scale = img.width / prs.slide_width
+        changed, repaired, videos = False, 0, 0
+        for sh in shapes_of(slide.shapes):
+            blob = None
+            if sh.shape_type == MSO_SHAPE_TYPE.MEDIA:
+                videos += 1
+                try:
+                    blob = sh.poster_frame.blob if sh.poster_frame is not None else None
+                except Exception:
+                    blob = None
+            elif sh.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                try:
+                    blob = sh.image.blob
+                except Exception:
+                    blob = None
+            if blob is None or sh.width is None or sh.left is None:
+                continue
+            box = (max(0, int(sh.left * scale)), max(0, int(sh.top * scale)),
+                   min(img.width, int((sh.left + sh.width) * scale)),
+                   min(img.height, int((sh.top + sh.height) * scale)))
+            if box[2] - box[0] < 20 or box[3] - box[1] < 20:
+                continue
+            if ImageStat.Stat(img.crop(box).convert("L")).stddev[0] >= BLANK_STDDEV:
+                continue  # drawn fine
+            try:
+                pic = Image.open(io.BytesIO(blob))
+                frames = getattr(pic, "n_frames", 1)
+                pic.seek(frames // 2 if frames > 1 else 0)  # a middle frame of an animated GIF
+                pic = pic.convert("RGBA")
+                if sh.shape_type == MSO_SHAPE_TYPE.PICTURE:  # apply PowerPoint's crop
+                    cw, ch = pic.size
+                    pic = pic.crop((int(cw * sh.crop_left), int(ch * sh.crop_top),
+                                    int(cw * (1 - sh.crop_right)), int(ch * (1 - sh.crop_bottom))))
+                pic = pic.resize((box[2] - box[0], box[3] - box[1]))
+            except Exception:
+                continue
+            # Only a real failure if the picture itself has visible content (a mostly-white
+            # chart or logo legitimately renders as a near-uniform area).
+            if ImageStat.Stat(pic.convert("L")).stddev[0] < BLANK_STDDEV * 3:
+                continue
+            img.paste(pic, box[:2], pic)
+            changed, repaired = True, repaired + 1
+        if changed:
+            img.save(img_path)
+            warnings.append(f"Slide {number}: {repaired} image(s) LibreOffice could not draw (e.g. animated "
+                            "GIF or video) were filled in with their first frame / poster image")
+        if videos:
+            notes[number] = (f"[This slide contains {videos} embedded video(s); only the video's poster image "
+                             "is shown and the video itself is not searchable.]")
+    return notes, warnings
+
+
 def split_by_headings(text: str, heading_re: str = r"^#{1,3}\s+(.+)$") -> list[tuple[str, str]]:
     """Split text into (heading, body) sections. Text before the first heading is its own section."""
     sections: list[tuple[str, str]] = []
@@ -288,6 +370,12 @@ def ingest_file(path: str | Path, data_dir: Path, services: Services | None = No
         texts = pptx_slide_texts(src)
         try:
             from_pdf(convert_to_pdf(src, conv_dir), "slide", texts)
+            if pages and all(p.image_path for p in pages):
+                media_notes, repair_warnings = repair_pptx_renders(src, [p.image_path for p in pages])
+                warnings.extend(repair_warnings)
+                for p in pages:
+                    if p.number in media_notes:
+                        p.text = (p.text + "\n\n" + media_notes[p.number]).strip()
         except Exception as e:  # LibreOffice missing or failed: keep text, no images
             warnings.append(f"Slide images unavailable ({e}); text only")
             pages = [make(i + 1, "slide", t, x, None) for i, (t, x) in enumerate(texts)]
