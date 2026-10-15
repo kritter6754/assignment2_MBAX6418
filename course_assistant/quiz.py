@@ -274,7 +274,12 @@ def _write_questions(lib: Library, evidence: list[Evidence], need: int, topic: s
                     if isinstance(item.get(field), str):
                         item[field] = _strip_ids(item[field])
         for item in items:
-            q, why = validate_question(item, evidence, lambda qt, e: lib.quote_on_page(qt, e.page, e.text))
+            # Image questions may quote diagram/chart labels that OCR missed: if the text check
+            # fails, the vision model checks the label against the slide image itself.
+            def quote_ok(qt: str, e: Evidence) -> bool:
+                return lib.quote_on_page(qt, e.page, e.text) or (
+                    visual and e.kind == "image" and lib.quote_in_image(qt, e.page))
+            q, why = validate_question(item, evidence, quote_ok)
             if q is None:
                 notes.append(f"Rejected a generated {'image ' if visual else ''}question: {why}.")
                 if isinstance(item, dict) and "quote" in why:
@@ -328,10 +333,23 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
     visual: list[tuple[_RawQ, Evidence]] = []
     n_visual = math.ceil(n * MIN_VISUAL_SHARE) if include_images else 0
     if n_visual:
-        pool = visual_evidence(lib, doc_ids, topic, k=min(5, n_visual + 2), seed=seed)  # ≤5 images per request
-        if pool:
-            visual = _write_questions(lib, pool, n_visual, topic, difficulty, avoid, excluded, seen_q,
-                                      notes, visual=True, attempts=3)
+        # Rotate through the visual slides: each attempt gets a fresh set (≤5 images per request),
+        # skipping slides that already produced a question, so retries don't just repeat it.
+        candidates = visual_evidence(lib, doc_ids, topic, k=12, seed=seed)
+        used: set[str] = set()
+        for attempt in range(4):
+            left = n_visual - len(visual)
+            if left <= 0 or not candidates:
+                break
+            fresh = [e for e in candidates if e.page_id not in used] or candidates
+            start = (attempt * 2) % len(fresh)
+            window = (fresh[start:] + fresh[:start])[: min(5, left + 2)]
+            pool = [Evidence(f"V{i + 1}", "image", e.page, None, 0.0) for i, e in enumerate(window)]
+            got = _write_questions(lib, pool, left, topic, difficulty,
+                                   avoid + [q.question for q, _ in visual], excluded, seen_q, notes,
+                                   visual=True, attempts=1)
+            used.update(ev.page_id for _, ev in got)
+            visual += got
         if len(visual) < n_visual:
             notes.append(f"Only {len(visual)} of {n_visual} image questions could be made from the visual "
                          "slides in this material.")

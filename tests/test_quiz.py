@@ -218,3 +218,39 @@ def test_truncated_reply_is_salvaged_and_ids_stripped():
     assert _strip_ids("In the chart shown in [V2], which event happened?") == "In the chart shown, which event happened?"
     assert _strip_ids("Per [S1] the answer is clear (S3).") == "Per the answer is clear."
     assert _strip_ids("Store it in an S3 bucket with Model V2.") == "Store it in an S3 bucket with Model V2."
+
+
+def test_image_question_label_missed_by_ocr_is_checked_on_the_image(tmp_path, fake):
+    library = _visual_library(tmp_path, fake, pages=2)
+    doc = next(iter(library.docs))
+    label = "Retrieve supporting data"  # on the diagram, but not in the text layer or OCR
+    page = next(iter(library.pages.values()))
+    assert not library.quote_on_page(label, page)
+
+    def image_check(messages):  # fake vision model: the label is on the image
+        return '{"appears": true}'
+
+    fake.chat_replies = [_generic_reply("V", label, 1), image_check,
+                         _generic_reply("S", "the retrieval pipeline overview", 4)]
+    quiz = generate_quiz(library, [doc], n=5, seed=1, include_images=True)
+    assert sum(q.visual for q in quiz.questions) == 1
+
+
+def test_image_question_with_label_not_on_image_is_rejected(tmp_path, fake):
+    library = _visual_library(tmp_path, fake, pages=1)
+    doc = next(iter(library.docs))
+    image_q = _generic_reply("V", "A label that is not there", 1)
+    text_q = _generic_reply("S", "the retrieval pipeline overview", 5)
+
+    def model(messages):  # one fake for every kind of request
+        system = messages[0]["content"] if messages[0]["role"] == "system" else ""
+        if "IMAGE QUESTIONS" in system:
+            return image_q(messages)
+        if system:
+            return text_q(messages)
+        return '{"appears": false}'  # vision check: the label is not on the image
+
+    fake.chat_replies = [model] * 20
+    quiz = generate_quiz(library, [doc], n=5, seed=1, include_images=True)
+    assert sum(q.visual for q in quiz.questions) == 0
+    assert any("image questions could be made" in n for n in quiz.notes)

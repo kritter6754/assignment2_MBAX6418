@@ -183,6 +183,32 @@ class Library:
             return True
         return bool(page.image_path) and quote_found(quote, self.ocr_text(page))
 
+    def quote_in_image(self, quote: str, page: Page) -> bool:
+        """Ask the vision model whether `quote` is printed on the page image. Used for diagram
+        and chart labels that OCR missed. Cached per page and quote."""
+        if not page.image_path or not quote.strip():
+            return False
+        key = f"{page.page_id}|{quote.strip().lower()}"
+        cache = getattr(self, "_image_quote_cache", None)
+        if cache is None:
+            cache = self._image_quote_cache = {}
+        if key not in cache:
+            from .services import extract_json, image_data_url
+
+            schema = {"type": "object", "properties": {"appears": {"type": "boolean"}}, "required": ["appears"]}
+            prompt = (f"Does this exact text appear printed in the image (as a label, title, value or "
+                      f"caption)? Small differences in capitalisation or punctuation are fine, but the "
+                      f"words must be there.\n\nText: \"{quote.strip()}\"\n\nReturn JSON: {{\"appears\": true|false}}")
+            try:
+                raw = self.services.chat([{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": image_data_url(page.image_path, max_side=1600)}},
+                    {"type": "text", "text": prompt}]}], schema=schema, max_tokens=50)
+                cache[key] = bool(extract_json(raw).get("appears"))
+            except Exception as e:  # verification is best-effort; never crash quiz generation
+                log.warning("image quote check failed for %s: %s", page.page_id, e)
+                cache[key] = False
+        return cache[key]
+
     def doc_pages(self, doc_id: str) -> list[Page]:
         return sorted((p for p in self.pages.values() if p.doc_id == doc_id), key=lambda p: p.number)
 
