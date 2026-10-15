@@ -187,6 +187,7 @@ Tests check each of these, and the UI walkthrough checks the page HTML for leaks
 | `uv run python scripts/ui_walkthrough.py` | Drives the running app in a headless browser: asks an answerable question and an unanswerable one, generates a quiz and confirms answers are hidden before checking, checks one answer and reveals another, verifies the score, browses the library, checks the page for secrets, and saves the screenshots in `docs/screenshots/` | Yes (app running) |
 | `uv run python eval/run_eval.py` | The benchmark below. Writes [`results/summary.md`](results/summary.md) and [`results/eval_results.json`](results/eval_results.json) | Yes |
 | `uv run python eval/prefix_ablation.py` | The embedding-prefix comparison below. Writes [`results/prefix_ablation.json`](results/prefix_ablation.json) | Yes |
+| `uv run python eval/variation.py` | Runs the whole benchmark 3 times and reports the mean and range of every score, plus questions whose outcome changed. Writes [`results/variation.md`](results/variation.md) | Yes |
 
 ## Results and findings
 
@@ -224,6 +225,16 @@ End to end: the full app (retrieve, answer, check), comparing the hybrid design 
 
 Rows 1–3 were recorded from development runs; only the final run is saved in `results/`. In step 4, the ChatML question's correct-slide list was widened after seeing the results, because slide 7 also lists those tokens. Without that change, hybrid would score 28/29.
 
+### Run-to-run variation (issue #5, [`results/variation.md`](results/variation.md))
+
+The full benchmark was run 3 times without changing anything:
+- **Retrieval:** every score was identical in all 3 runs, in every mode.
+- **End-to-end:** every score was identical except one. Hybrid answered all 29 answerable questions with a correct slide, and refused all 6 unanswerable ones, in every run.
+- **The one question that changed:** t07 (zero-shot vs few-shot prompting) was "answered" in one run and "partly supported" in two. The support check is borderline on that answer's wording ("few-shot gives *many* examples").
+- **Median answer time** varied between 2.1 and 2.3 seconds.
+
+So the headline numbers are stable; individual borderline answers can flip.
+
 ### Findings
 1. **The design choice compared: an embedding-model detail mattered more than the search architecture.** With no prefixes, text-vector-only retrieval found a correct slide in the top 3 for just 55% of questions. With the `query:`/`passage:` prefixes the model expects, it found one for 93% ([`results/prefix_ablation.json`](results/prefix_ablation.json); hit@1 went from 0.41 to 0.83). Before the fix, "hybrid beats text-only" looked like a big win. Most of that gap was a misconfigured baseline.
 2. **Reranking helps most at the very top.** Without the reranker, hybrid hit@1 drops from 1.00 to 0.90. The reranker is the only component that scores text chunks and slide images against each other.
@@ -234,6 +245,8 @@ Rows 1–3 were recorded from development runs; only the final run is saved in `
 ## What was tested and what wasn't
 
 **Tested (automated, passing as of the last run):**
+- **Scanned PDFs (issue #4):** a 3-page image-only PDF (greyscale, tilted, blurred, JPEG-compressed) made from real slides was OCR'd with the class service. The text matched the original slides 98–100%; questions were answered citing the scanned pages; quizzes were generated from it; and the Library browser marks those pages "(text from OCR)". `uv run pytest -m live` repeats a version of this check.
+- **Repeatability (issue #5):** the full benchmark run 3 times (see above).
 - the 43 offline tests (including password and read-only checks for sharing);
 - the 3 live service smoke tests;
 - the browser walkthrough of all three tabs;
@@ -243,15 +256,13 @@ Rows 1–3 were recorded from development runs; only the final run is saved in `
 
 **Not checked yet:**
 - **Real PDFs, DOCX, and Canvas HTML/syllabus files.** Each format family is covered by unit tests with generated files, but only `.pptx` has been tested end to end with real course files (we don't have a syllabus file yet).
-- **Scanned PDFs on the real OCR service.** OCR was exercised only through slide images and a fake in the unit tests.
 - **Quiz quality at scale.** Quiz *validity* is enforced automatically (format, source, quote), but nobody has systematically reviewed whether questions are pedagogically good or whether the distractors are fair.
 - **The benchmark is small and was written by the same person (Claude) who built the system,** after reading the slides, so question wording overlaps heavily with the slides. The perfect hybrid scores mostly show that this benchmark is too easy now. Teammates should add harder, paraphrased questions.
-- **Run-to-run variation.** The LLM runs at temperature 0, but the server's outputs still vary slightly between runs (e.g. whether a borderline answer is flagged as partly supported). Each benchmark configuration was run once.
 - **Multiple users at once, very large libraries (thousands of pages), Windows, and accessibility.**
 
 ## Limitations
 - **Image questions check their quotes, not their reasoning.** The app verifies that the label an image question cites appears on the slide, but the model can still misread a diagram, for example claiming two shapes don't overlap when they do. Some decks have few visual slides, so their image questions may reuse the same slide.
-- **Embedded videos** in slides render as blank frames (e.g. Week 2, slide 37), so their content can't be searched.
+- **Animated GIFs and embedded videos:** LibreOffice can't draw them and leaves a blank box. During ingestion the app fills in such boxes with a middle frame of the GIF or the video's poster image, and lists each repair in the Library's Warnings column. Examples: Week 2 slide 37 and Week 5 slide 8 were both animated GIFs. Only that one frame is searchable, not the rest of the animation or the video.
 - **OCR text is used for search and for verifying quotes, but OCR can misread.** Answers that rely on OCR'd text or on a diagram show the original image, so students can check them.
 - **"Visual evidence" sources** are labelled *"Model's reading of the image"* when the model describes a diagram instead of quoting it. Those depend on the LLM support check rather than an exact text match.
 - **Partial answers:** the model sometimes answers "not found" when the slides cover only part of a question, instead of giving the partial answer.
