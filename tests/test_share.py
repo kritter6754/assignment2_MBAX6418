@@ -80,3 +80,25 @@ def test_login_can_be_turned_off_explicitly(monkeypatch, tmp_path):
     assert load_share_settings(env).require_login is False
     monkeypatch.delenv("REQUIRE_LOGIN")
     assert load_share_settings(env).require_login is True  # login stays on by default
+
+
+def test_local_run_has_no_login_even_with_password():
+    local = ShareSettings(share=False, username="u", password="pw", read_only=False)
+    assert "auth" not in app.launch_options(local)
+
+
+def test_library_password_guards_add_and_remove(monkeypatch, lib):
+    import gradio as gr
+    import pytest as _pytest
+
+    monkeypatch.setattr(app, "get_library", lambda: lib)
+    demo = app.build_ui(read_only=False, edit_password="lib-pw")
+    assert any(getattr(b, "label", "") and "Library password" in b.label for b in demo.blocks.values())
+    doc = next(iter(lib.docs))
+    app.remove_doc(doc, "wrong")  # refused with a warning, nothing removed
+    assert doc in lib.docs
+    assert "Wrong library password" in app.add_files([], "wrong")[0]
+    app.remove_doc(doc, "lib-pw")
+    assert doc not in lib.docs
+    app.build_ui(read_only=False, edit_password=None)  # local: no password needed
+    app.remove_doc(next(iter(lib.docs)), None)

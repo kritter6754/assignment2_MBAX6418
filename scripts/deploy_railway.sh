@@ -33,6 +33,8 @@ if [ -z "$VOLUME" ]; then
   exit 1
 fi
 echo "Uploading library to volume $VOLUME ..."
+echo "Note: this replaces the online library with your local one; documents added or removed on"
+echo "the website since the last upload are overwritten."
 # Uploading the folder to "/" replaces /data/library on the volume.
 railway volume files --volume "$VOLUME" upload deploy/build/library / --overwrite
 

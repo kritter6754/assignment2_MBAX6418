@@ -8,6 +8,7 @@ the solution: quizzes are stored server-side and the browser only holds a quiz i
 from __future__ import annotations
 
 import base64
+import hmac
 import html
 import time
 import logging
@@ -248,7 +249,16 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
     .prior-split .prior-right {{ border-left: none; border-top: 2px solid var(--border-color-primary);
                                 padding-top: 16px !important; }}
 }}
-.prose h1, .prose h2, .prose h3 {{ padding-left: 2px; overflow: visible; }}
+/* Text must never touch a rounded edge: Gradio's text blocks hide overflow and have
+   rounded corners, which clipped the first letters of headings and lines. Applies to every
+   Markdown/HTML block, label and table title in the app. */
+.block.hide-container, .block:has(> .prose), .block:has(.md.prose) {{
+    overflow: visible !important; border-radius: 0 !important;
+}}
+.prose, .md {{ padding-left: 3px !important; padding-right: 3px !important; overflow: visible !important; }}
+.prose h1, .prose h2, .prose h3 {{ overflow: visible; }}
+[data-testid="block-info"], .block-title, .block-label {{ padding-left: 3px; overflow: visible !important; }}
+.table-wrap, .table-container {{ overflow-x: auto; }}
 table td, table th, table input {{ font-family: var(--font) !important; }}
 img[alt^="[S"] {{ border-radius: 14px !important; border: none !important; box-shadow: var(--block-shadow); }}
 """
@@ -290,7 +300,25 @@ def accepted_formats_md() -> str:
     return "\n".join(lines)
 
 
-def add_files(files, progress=gr.Progress()):
+# When the app is public without a login, adding/removing documents needs this password.
+_EDIT_PASSWORD: str | None = None
+
+
+WRONG_PASSWORD = "Wrong library password. Adding or removing documents needs the library password."
+
+
+def _password_ok(password: str | None) -> bool:
+    """True when no library password is set, or the given one matches. On a mismatch shows a
+    non-blocking warning (a raised error would lock the controls behind an error overlay)."""
+    if not _EDIT_PASSWORD or hmac.compare_digest((password or "").encode(), _EDIT_PASSWORD.encode()):
+        return True
+    gr.Warning(WRONG_PASSWORD)
+    return False
+
+
+def add_files(files, password=None, progress=gr.Progress()):
+    if not _password_ok(password):
+        return (f"✗ {WRONG_PASSWORD}",) + (gr.update(),) * 5
     lib = get_library()
     msgs = []
     for f in files or []:
@@ -313,7 +341,9 @@ def add_files(files, progress=gr.Progress()):
             gr.update(choices=choices))
 
 
-def remove_doc(doc_id):
+def remove_doc(doc_id, password=None):
+    if not _password_ok(password):
+        return (gr.update(),) * 5
     if doc_id:
         get_library().remove(doc_id)
     choices = _doc_choices()
@@ -587,8 +617,10 @@ def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool,
             _score_md(quiz, progress), mastered, _mastered_md(mastered), missed, *_prior_views(missed, mastered))
 
 
-def build_ui(read_only: bool = False) -> gr.Blocks:
+def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Blocks:
     """read_only=True leaves out upload and remove entirely, so visitors can't change the library."""
+    global _EDIT_PASSWORD
+    _EDIT_PASSWORD = edit_password or None
     lib = get_library()
     choices = _doc_choices()
     
@@ -700,6 +732,11 @@ def build_ui(read_only: bool = False) -> gr.Blocks:
                 with gr.Row():
                     rm_doc = gr.Dropdown(choices=choices, value=None, label="Remove a document")
                     rm_btn = gr.Button("Remove", variant="stop")
+                if edit_password:
+                    lib_pw = gr.Textbox(label="Library password (needed to add or remove documents)",
+                                        type="password", placeholder="Library password")
+                else:
+                    lib_pw = gr.State(None)
             gr.Markdown("### Browse a document\nSee exactly what was extracted from each page or slide.")
             with gr.Row():
                 view_doc = gr.Dropdown(choices=choices, value=None, label="Document")
@@ -708,8 +745,8 @@ def build_ui(read_only: bool = False) -> gr.Blocks:
                 view_img = gr.Image(interactive=False, label="Original", height=360)
                 view_txt = gr.Textbox(label="Extracted text", lines=16, max_lines=30, interactive=False)
             if not read_only:
-                add_btn.click(add_files, [upload], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc])
-                rm_btn.click(remove_doc, [rm_doc], [table, rm_doc, ask_docs, quiz_docs, view_doc])
+                add_btn.click(add_files, [upload, lib_pw], [add_log, table, ask_docs, quiz_docs, rm_doc, view_doc])
+                rm_btn.click(remove_doc, [rm_doc, lib_pw], [table, rm_doc, ask_docs, quiz_docs, view_doc])
             view_doc.change(show_page, [view_doc, view_n], [view_img, view_txt])
             view_n.change(show_page, [view_doc, view_n], [view_img, view_txt])
             
@@ -722,7 +759,7 @@ def launch_options(s: ShareSettings) -> dict:
         raise SystemExit("A public app (SHARE=true or HOST=0.0.0.0) needs APP_PASSWORD, or "
                          "REQUIRE_LOGIN=false to deliberately run it without a login.")
     opts: dict = {"server_name": s.host, "server_port": s.port, "share": s.share, "show_error": False}
-    if s.password and s.require_login:
+    if s.public and s.require_login and s.password:  # local runs never need a login
         opts["auth"] = (s.username, s.password)
         opts["auth_message"] = "MBAX 6418 Course Assistant: ask your team for the password."
     return opts
@@ -734,7 +771,12 @@ def main() -> None:
     register_secret(share.password)
     opts = launch_options(share)
     lib = get_library()
-    demo = build_ui(read_only=share.read_only)
+    # Public without a login: library edits are protected by the app password instead.
+    edit_password = share.password if (share.public and "auth" not in opts and not share.read_only) else None
+    if share.public and "auth" not in opts and not share.read_only and not edit_password:
+        raise SystemExit("A public app without a login can only edit the library with APP_PASSWORD set "
+                         "(or set READ_ONLY=true).")
+    demo = build_ui(read_only=share.read_only, edit_password=edit_password)
     if share.share:
         log.info("Creating a public link (up to a week, only while this computer runs the app); "
                  "read-only=%s", share.read_only)

@@ -4,6 +4,10 @@
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
+# LibreOffice renders PowerPoint/Word uploads to slide/page images.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-impress libreoffice-writer fonts-dejavu \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
