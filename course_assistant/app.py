@@ -12,13 +12,14 @@ import hmac
 import os
 import html
 import time
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from pathlib import Path
 
 import gradio as gr
 
 from . import get_library
-from .answer import AnswerResult, SourceRef, answer_question
+from .answer import AnswerResult, SourceRef, answer_question, split_numbered_questions
 from .config import (ACCEPTED_FORMATS, PROJECT_ROOT, ShareSettings, load_share_settings, redact,
                      register_secret, setup_logging)
 from .quiz import Quiz, generate_quiz, load_quiz, public_questions, retry_missed, save_quiz
@@ -224,6 +225,11 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
 .q-card p, .q-card strong {{ line-height: 1.5; }}
 .q-actions {{ gap: 10px !important; justify-content: flex-start; }}
 .doc-select-actions {{ gap: 10px !important; justify-content: flex-start; }}
+.answer-card {{ margin-bottom: 12px; gap: 2px !important; }}
+.answer-card .block:empty, .answer-card .prose:empty {{ display: none; }}
+.qa-heading h3 {{ margin: 0 0 4px; font-size: 1.05rem; color: {ACCENT}; }}
+.dark .qa-heading h3 {{ color: {ACCENT_DARK_TEXT}; }}
+.ask-hint p {{ font-size: 0.88rem; color: var(--body-text-color-subdued); margin: 0; }}
 .img-badge {{
     display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
     background: var(--color-accent-soft); color: {ACCENT};
@@ -423,13 +429,41 @@ def render_answer(r: AnswerResult) -> tuple[str, str]:
     return answer_md, sources_md
 
 
-def ask(question, doc_ids):
+MAX_ASK = 10  # questions answered at once
+
+
+def _ask_one(question: str, doc_ids) -> tuple[str, str]:
     try:
-        r = answer_question(get_library(), question, doc_ids or None)
+        return render_answer(answer_question(get_library(), question, doc_ids or None))
     except Exception as e:
         log.exception("ask failed")
         return f"{STATUS_BADGE['error']}\n\n{_safe_error(e)}", ""
-    return render_answer(r)
+
+
+def ask(question, doc_ids):
+    """One answer card per numbered question ("1. ... 2. ..."); outputs per card slot:
+    visibility, question heading, answer, sources."""
+    questions = split_numbered_questions(question or "")
+    note = ""
+    if len(questions) > MAX_ASK:
+        note = f"\n\n_Only the first {MAX_ASK} of {len(questions)} questions were answered._"
+        questions = questions[:MAX_ASK]
+    if not questions:
+        questions = [""]
+    with ThreadPoolExecutor(max_workers=4) as ex:  # answer them in parallel
+        results = list(ex.map(lambda q: _ask_one(q, doc_ids), questions))
+    multi = len(questions) > 1
+    out: list = []
+    for i in range(MAX_ASK):
+        if i < len(questions):
+            answer_md, sources_md = results[i]
+            heading = (f"### Question {i + 1}\n**{html.escape(questions[i])}**" if multi else "")
+            if i == len(questions) - 1:
+                sources_md += note
+            out += [gr.update(visible=True), heading, answer_md, sources_md]
+        else:
+            out += [gr.update(visible=False), "", "", ""]
+    return out
 
 # -- quiz --------------------------------------------------------------------------
 def _quiz(quiz_id: str | None) -> Quiz | None:
@@ -676,20 +710,29 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
         with gr.Tab("Ask"):
             with gr.Row():
                 with gr.Column(scale=3):
-                    question = gr.Textbox(label="Your question", lines=2,
-                                          placeholder="e.g. Why does RAG use both keyword and vector search?")
+                    question = gr.Textbox(label="Your question", lines=4,
+                                          placeholder="e.g. Why does RAG use both keyword and vector search?\n\n"
+                                                      "1. What is a KV cache?\n2. What does reranking do?")
+                    gr.Markdown("_To input multiple questions, please insert **1.**, **2.**, etc. before each "
+                                "one (each on its own line). Each question gets its own answer box._",
+                                elem_classes=["ask-hint"])
                     ask_docs = gr.CheckboxGroup(choices=choices, label="Search in (leave empty for all documents)")
                     with gr.Row(elem_classes=["doc-select-actions"]):
                         select_all_btn = gr.Button("Select all", size="sm", scale=0, min_width=110)
                         clear_sel_btn = gr.Button("Clear", size="sm", scale=0, min_width=90)
                     ask_btn = gr.Button("Ask", variant="primary")
-                with gr.Column(scale=4, elem_classes=["card"]):
-                    answer_md = gr.Markdown("_Your answer and its sources will appear here._")
-                    sources_md = gr.Markdown()
+                with gr.Column(scale=4):
+                    ask_outs = []
+                    for i in range(MAX_ASK):
+                        with gr.Column(visible=(i == 0), elem_classes=["card", "answer-card"]) as box:
+                            heading = gr.Markdown(elem_classes=["qa-heading"])
+                            answer_md = gr.Markdown("_Your answer and its sources will appear here._" if i == 0 else "")
+                            sources_md = gr.Markdown()
+                        ask_outs += [box, heading, answer_md, sources_md]
             select_all_btn.click(select_all_docs, None, ask_docs, show_progress="hidden")
             clear_sel_btn.click(lambda: gr.update(value=[]), None, ask_docs, show_progress="hidden")
-            ask_btn.click(ask, [question, ask_docs], [answer_md, sources_md])
-            question.submit(ask, [question, ask_docs], [answer_md, sources_md])
+            # Enter adds a new line (for numbered lists); the Ask button submits.
+            ask_btn.click(ask, [question, ask_docs], ask_outs)
 
         with gr.Tab("Quiz") as quiz_tab:
             quiz_id = gr.State(None)

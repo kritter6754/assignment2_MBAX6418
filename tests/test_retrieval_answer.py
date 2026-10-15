@@ -195,3 +195,43 @@ def test_library_moves_between_machines(tmp_path, fake):
     moved = Library(tmp_path / "b", fake)
     page = next(iter(moved.pages.values()))
     assert page.image_path.startswith(str(tmp_path / "b")) and Path(page.image_path).exists()
+
+
+def test_split_numbered_questions():
+    from course_assistant.answer import split_numbered_questions as split
+
+    assert split("1. What is RAG?\n2. What is a KV cache?\n3. Why rerank?") == [
+        "What is RAG?", "What is a KV cache?", "Why rerank?"]
+    assert split("1) First one 2) second one") == ["First one", "second one"]   # inline, with ")"
+    assert split("What is RAG?") == ["What is RAG?"]                           # no list: one question
+    assert split("Compare GPT-5.2 and version 2. Which is newer?") == [
+        "Compare GPT-5.2 and version 2. Which is newer?"]                       # numbers inside a question
+    assert split("2. Starts at two\n3. Then three") == ["2. Starts at two\n3. Then three"]  # must start at 1
+    assert split("1. Only one numbered question") == ["1. Only one numbered question"]
+    assert split("   ") == []
+
+
+def test_ask_answers_each_numbered_question_in_its_own_box(monkeypatch, lib, fake):
+    import json
+
+    import course_assistant.app as app
+
+    monkeypatch.setattr(app, "get_library", lambda: lib)
+
+    def reply(messages):  # fake model: cite the first evidence item, quote its first words
+        if messages[0]["content"].startswith("You check citations"):
+            return SUPPORTED
+        parts = [p["text"] for p in messages[1]["content"] if p.get("type") == "text" and p["text"].startswith("[S")]
+        sid = parts[0].split("]")[0].strip("[")
+        quote = parts[0].split("\n", 1)[1].strip()[:40]
+        return json.dumps({"found": True, "answer": f"See [{sid}].", "sources": [{"id": sid, "quote": quote}]})
+
+    fake.chat_replies = [reply] * 12
+    out = app.ask("1. Where does cellular respiration happen?\n2. What is photosynthesis?\n"
+                  "3. What are tectonic plates?", None)
+    boxes = [out[i:i + 4] for i in range(0, len(out), 4)]
+    visible = [b for b in boxes if b[0]["visible"]]
+    assert len(boxes) == app.MAX_ASK and len(visible) == 3
+    assert "Question 1" in visible[0][1] and "cellular respiration" in visible[0][1]
+    assert "Question 3" in visible[2][1] and "tectonic plates" in visible[2][1]
+    assert all("Answered" in b[2] for b in visible)

@@ -174,6 +174,32 @@ def support_check(lib: Library, answer: str, sources: list[SourceRef]) -> tuple[
     return bool(data.get("supported")), [str(c) for c in data.get("unsupported_claims", [])]
 
 
+_NUMBER_MARK = re.compile(r"(?:(?<=\s)|^)(\d{1,2})[.)]\s+")
+
+
+def split_numbered_questions(text: str) -> list[str]:
+    """Split "1. ... 2. ... 3. ..." into separate questions.
+
+    Markers must start at 1 and count up by one, each at the start of a line or after a
+    space, so numbers inside a question (e.g. "GPT-5.2" or "version 2.") don't split it.
+    Text without such a list is returned as a single question.
+    """
+    marks, expected = [], 1
+    for m in _NUMBER_MARK.finditer(text):
+        if int(m.group(1)) == expected:
+            marks.append(m)
+            expected += 1
+    if len(marks) < 2:
+        return [text.strip()] if text.strip() else []
+    parts = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        q = text[m.end():end].strip()
+        if q:
+            parts.append(q)
+    return parts
+
+
 def answer_question(lib: Library, question: str, doc_ids: list[str] | None = None,
                     mode: Mode = "hybrid", check_support: bool = True) -> AnswerResult:
     question = question.strip()
