@@ -20,3 +20,6 @@ __pycache__/
 
 # --- deploy bundle (contains slide images; never commit) ---
 deploy/
+
+# --- downloaded backups of the Railway library (slide images; never commit) ---
+backups/

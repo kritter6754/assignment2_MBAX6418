@@ -714,8 +714,9 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
 
         with gr.Tab("Library"):
             if read_only:
-                gr.Markdown("_This shared copy is read-only: browse the documents below; "
-                            "adding or removing files is turned off._")
+                gr.Markdown("_The library is read-only here. Documents are added and removed on the "
+                            "[online app](https://course-assistant-production-3fbf.up.railway.app) "
+                            "(Library tab, with the library password)._")
             else:
                 with gr.Row():
                     with gr.Column():

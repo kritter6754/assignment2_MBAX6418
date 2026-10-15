@@ -98,22 +98,20 @@ Loading the five course decks (142 slides) takes about 3 minutes, mostly OCR and
 
 ### Always-on hosting (Railway)
 
-The app runs on [Railway](https://railway.com), so it stays up when everyone's laptops are off. The server image contains the code and the prepared library (slide images, extracted text, search indexes), built from your local `data/`. The server never sees the original course files, and none of this goes to GitHub.
+The app runs on [Railway](https://railway.com) at https://course-assistant-production-3fbf.up.railway.app, so it stays up when everyone's laptops are off.
 
-First time (one person):
-```bash
-railway login                       # opens a browser
-railway init -n course-assistant    # creates the Railway project
-scripts/deploy_railway.sh           # copies .env settings to Railway, builds, uploads
-railway domain                      # creates the public https://...up.railway.app address
-```
+- **Code deploys automatically.** Railway is connected to this GitHub repo and rebuilds on every push to `main`.
+- **The course library lives only on Railway,** on a storage volume (`/data`). It holds the slide images, extracted text, search indexes and saved quizzes. It is not in GitHub, because the repo is public and the slides are the instructor's.
+- **All library changes happen on the website:** Library tab → enter the **library password** (`APP_PASSWORD`) → Add or Remove. Local runs have Add and Remove turned off (`READ_ONLY=true` in `.env`), so there is only one library to keep track of.
+- **No login page:** anyone with the link can ask questions and take quizzes (`REQUIRE_LOGIN=false` on Railway). Only library changes need the password.
 
-To redeploy after code or library changes, run `scripts/deploy_railway.sh` again. Other teammates run `railway link` once first.
+| Task | Command |
+|---|---|
+| Change settings (key, endpoints, password) | edit `.env`, then `scripts/deploy_railway.sh` (copies settings to Railway through stdin, so the key never appears in a command or log, then redeploys) |
+| Keep a copy of the online library | `scripts/backup_railway_library.sh` (downloads to `backups/`, which is git-ignored) |
+| Set up a brand-new Railway project | `railway init`, `railway volume add --mount-path /data`, connect the repo in Railway, then `scripts/seed_railway_library.sh` once. It refuses to overwrite an existing online library unless you pass `--force`. |
 
-- **Settings live in Railway variables.** The script copies them from `.env` through stdin, so the key never appears in a command, a log or the image.
-- **The hosted app is read-only and needs the login** (`APP_USERNAME`/`APP_PASSWORD`). It refuses to start on a public host without a password.
-- **Saved quizzes on the server are lost on each redeploy.** Library changes are made locally, then redeployed.
-- Railway charges about $5 a month after its free trial credit.
+Teammates run `railway login` and `railway link` once before using these scripts. Railway charges about $5 a month after its free trial credit.
 
 ### Sharing a public link
 
