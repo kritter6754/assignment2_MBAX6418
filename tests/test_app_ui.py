@@ -80,3 +80,32 @@ def test_missed_question_moves_to_mastered_when_answered_right(monkeypatch, lib,
 def test_old_saved_lists_of_strings_still_work():
     assert app._as_entries(["What is RAG?"]) == [{"question": "What is RAG?"}]
     assert "What is RAG?" in app._prior_md(["What is RAG?"], "mastered")
+
+
+def test_scoreboard_counts_each_check(monkeypatch, lib, fake):
+    import re
+
+    from conftest import doc_id_by_name
+    from course_assistant.quiz import generate_quiz, save_quiz
+    from test_quiz import _quiz_reply
+
+    monkeypatch.setattr(app, "get_library", lambda: lib)
+    fake.chat_replies = [_quiz_reply(lib, n=3)]
+    quiz = generate_quiz(lib, [doc_id_by_name(lib, "biology.md")], n=3, seed=5)
+    save_quiz(quiz, lib.dir)
+    q1, q2, q3 = quiz.questions
+
+    def pills(html: str) -> dict:
+        return dict(re.findall(r"<span>([^<]+)</span><b>([^<]+)</b>", html))
+
+    assert pills(app._score_md(quiz, {})) == {"Score": "0 / 3", "Correct": "0", "Incorrect": "0",
+                                               "Questions finished": "0 / 3"}
+    out = app._finish(0, quiz.quiz_id, {}, f"{app.LETTERS[q1.correct_index]}. x", False, [], [])
+    assert pills(out[4]) == {"Score": "1 / 3", "Correct": "1", "Incorrect": "0", "Questions finished": "1 / 3"}
+    out = app._finish(1, quiz.quiz_id, out[0], f"{app.LETTERS[(q2.correct_index + 1) % 4]}. x", False,
+                      out[5], out[7])
+    assert pills(out[4]) == {"Score": "1 / 3", "Correct": "1", "Incorrect": "1", "Questions finished": "2 / 3"}
+    # Revealing (even after picking the right option) counts as incorrect, like the Prior Questions list.
+    out = app._finish(2, quiz.quiz_id, out[0], f"{app.LETTERS[q3.correct_index]}. x", True, out[5], out[7])
+    assert pills(out[4]) == {"Score": "1 / 3", "Correct": "1", "Incorrect": "2", "Questions finished": "3 / 3"}
+    assert "Quiz complete" in out[4] and "1 solution revealed" in out[4]

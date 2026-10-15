@@ -18,7 +18,7 @@ import gradio as gr
 from . import get_library
 from .answer import AnswerResult, SourceRef, answer_question
 from .config import ACCEPTED_FORMATS, PROJECT_ROOT, redact, setup_logging
-from .quiz import Quiz, generate_quiz, grade, load_quiz, public_questions, retry_missed, save_quiz
+from .quiz import Quiz, generate_quiz, load_quiz, public_questions, retry_missed, save_quiz
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +120,8 @@ def make_theme() -> gr.themes.Base:
 
 
 CUSTOM_CSS = f"""
-.gradio-container {{ max-width: 1280px !important; margin: 0 auto !important; }}
+.gradio-container {{ max-width: 1280px !important; margin: 0 auto !important;
+                     overflow: clip !important; }}  /* clip (not hidden) so the scoreboard can stick */
 
 /* header card: white in light mode, navy in dark mode */
 #app-header {{
@@ -180,7 +181,24 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
     border: none !important; background: transparent !important; box-shadow: none !important;
 }}
 .q-slide img {{ border-radius: 14px; box-shadow: var(--block-shadow); }}
-.quiz-summary {{ gap: 4px !important; }}
+.quiz-summary {{ gap: 6px !important; position: sticky; top: 8px; z-index: 1000; isolation: isolate; }}
+/* question text: own padding so the rounded container doesn't clip it */
+.q-title, .q-title .prose {{ overflow: visible !important; border-radius: 0 !important; }}
+.q-title {{ padding: 4px 6px 0 !important; }}
+.q-title p, .q-title strong {{ font-size: 0.93rem !important; line-height: 1.5; }}
+/* live scoreboard */
+.scoreboard {{ display: flex; flex-wrap: wrap; gap: 10px; }}
+.score-pill {{
+    display: flex; align-items: baseline; gap: 8px; padding: 8px 16px; border-radius: 999px;
+    background: var(--color-accent-soft); color: var(--body-text-color); font-size: 0.9rem;
+}}
+.score-pill b {{ font-size: 1.05rem; }}
+.score-pill.main {{ background: {ACCENT}; color: #FFFFFF; }}
+.score-pill.ok b {{ color: #16A34A; }}
+.score-pill.bad b {{ color: #DC2626; }}
+.dark .score-pill.ok b {{ color: #4ADE80; }}
+.dark .score-pill.bad b {{ color: #F87171; }}
+.score-note {{ margin: 8px 4px 0; color: var(--body-text-color-subdued); font-size: 0.9rem; }}
 /* Prior Questions: one card split down the middle */
 .prior-split {{ gap: 0 !important; align-items: stretch; }}
 .prior-split .prior-col {{ padding: 4px 24px !important; min-width: 0; }}
@@ -327,14 +345,31 @@ def _quiz(quiz_id: str | None) -> Quiz | None:
 
 
 def _score_md(quiz: Quiz, progress: dict) -> str:
-    responses = {qid: p.get("chosen") for qid, p in progress.items()}
-    g = grade(quiz, responses)
-    done = len(progress)
-    revealed = sum(1 for p in progress.values() if p.get("revealed") and p.get("chosen") is None)
-    txt = f"### Score: {g.score} / {g.total}  \n{done} of {g.total} questions finished"
+    """Scoreboard, updated on every Check answer / Show solution. A question counts as
+    correct only if it was answered correctly before revealing the solution."""
+    key = {q.qid: q.correct_index for q in quiz.questions}
+    total = len(quiz.questions)
+    finished = len(progress)
+    correct = sum(1 for qid, p in progress.items()
+                  if not p.get("revealed") and p.get("chosen") is not None and p["chosen"] == key.get(qid))
+    incorrect = finished - correct
+    revealed = sum(1 for p in progress.values() if p.get("revealed"))
+
+    def pill(label: str, value: str, kind: str = "") -> str:
+        return f'<div class="score-pill {kind}"><span>{label}</span><b>{value}</b></div>'
+
+    board = ('<div class="scoreboard">'
+             + pill("Score", f"{correct} / {total}", "main")
+             + pill("Correct", str(correct), "ok")
+             + pill("Incorrect", str(incorrect), "bad")
+             + pill("Questions finished", f"{finished} / {total}")
+             + "</div>")
     if revealed:
-        txt += f" ({revealed} revealed without answering, counted as incorrect)"
-    return txt
+        board += (f'<p class="score-note">{revealed} solution{"s" if revealed != 1 else ""} revealed, '
+                  "counted as incorrect.</p>")
+    if total and finished == total:
+        board += f'<p class="score-note">🎉 Quiz complete: {correct} of {total} correct.</p>'
+    return board
 
 
 def _feedback_md(quiz: Quiz, i: int, chosen: int | None) -> str:
@@ -468,7 +503,7 @@ def redo_missed(quiz_id, progress):
     retry = retry_missed(quiz, responses)
     if retry is None:
         return [gr.update(), gr.update(), gr.update(), _score_md(quiz, progress or {})
-                + "\n\n🎉 Nothing to retry: every question was answered correctly."] + \
+                + '<p class="score-note">🎉 Nothing to retry: every question was answered correctly.</p>'] + \
             [gr.update()] * (5 * MAX_Q)
     save_quiz(retry, get_library().dir)
     return _render_quiz(retry)
@@ -558,12 +593,12 @@ def build_ui() -> gr.Blocks:
                     mastered_md = gr.Markdown(_mastered_md([]))
             with gr.Column(elem_classes=["card", "quiz-summary"]):
                 quiz_header = gr.Markdown("_Choose material and press **Generate quiz** to start._")
-                score_md = gr.Markdown()
+                score_md = gr.HTML()
             groups, qmds, radios, fbs, imgs = [], [], [], [], []
             finish_outs = []
             for i in range(MAX_Q):
                 with gr.Column(visible=False, elem_classes=["card", "q-card"]) as g:
-                    qmd = gr.Markdown()
+                    qmd = gr.Markdown(elem_classes=["q-title"])
                     radio = gr.Radio(choices=[], label="Your answer")
                     with gr.Row(elem_classes=["q-actions"]):
                         check = gr.Button("Check answer", size="sm", variant="primary", scale=0, min_width=150)
