@@ -63,6 +63,37 @@ def _header_html() -> str:
             'Every answer cites the document and page/slide it came from.</p>')
 
 
+# -- quiz loading timer -----------------------------------------------------------
+# Shows only the elapsed time (e.g. "⏳ 4.2s") once, at the top of the quiz card, while a
+# quiz is being generated. Runs in the browser before the request; the inputs are passed
+# through unchanged. QUIZ_TIMER_STOP_JS runs after the request finishes.
+QUIZ_TIMER_START_JS = """
+(...args) => {
+    const card = document.querySelector('.quiz-summary');
+    if (window.__quizTimer) clearInterval(window.__quizTimer);
+    document.querySelectorAll('.quiz-timer').forEach(e => e.remove());
+    if (card) {
+        const el = document.createElement('div');
+        el.className = 'quiz-timer';
+        card.prepend(el);
+        const t0 = performance.now();
+        const tick = () => { el.textContent = '⏳ ' + ((performance.now() - t0) / 1000).toFixed(1) + 's'; };
+        tick();
+        window.__quizTimer = setInterval(tick, 100);
+    }
+    return args;
+}
+"""
+
+QUIZ_TIMER_STOP_JS = """
+() => {
+    if (window.__quizTimer) clearInterval(window.__quizTimer);
+    window.__quizTimer = null;
+    document.querySelectorAll('.quiz-timer').forEach(e => e.remove());
+}
+"""
+
+
 # -- page styling ----------------------------------------------------------------
 # Soft, rounded "card" look: white surfaces with blue accents in light mode, deep navy
 # surfaces with the same blue accents in dark mode. Gradio applies the *_dark values
@@ -186,6 +217,14 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
 .q-title, .q-title .prose {{ overflow: visible !important; border-radius: 0 !important; }}
 .q-title {{ padding: 4px 6px 0 !important; }}
 .q-title p, .q-title strong {{ font-size: 0.93rem !important; line-height: 1.5; }}
+/* quiz loading timer */
+/* Gradio still draws its status text for show_progress="hidden" events; hide it. */
+.quiz-summary .wrap.hidden, .quiz-summary .wrap.hidden .progress-text {{ display: none !important; }}
+.quiz-timer {{
+    align-self: flex-start; width: fit-content; padding: 6px 14px; border-radius: 999px; font-weight: 600;
+    background: var(--color-accent-soft); color: {ACCENT}; font-variant-numeric: tabular-nums;
+}}
+.dark .quiz-timer {{ color: {ACCENT_DARK_TEXT}; }}
 /* live scoreboard */
 .scoreboard {{ display: flex; flex-wrap: wrap; gap: 10px; }}
 .score-pill {{
@@ -480,12 +519,11 @@ def _render_quiz(quiz: Quiz | None, message: str = "", requested: int | None = N
     return [quiz.quiz_id, {}, header, _score_md(quiz, {})] + groups + qmd + radios + fb + imgs
 
 
-def make_quiz(doc_ids, topic, difficulty, n, mastered, progress=gr.Progress()):
+def make_quiz(doc_ids, topic, difficulty, n, mastered):
     lib = get_library()
     try:
         if not doc_ids:
             raise ValueError("Choose at least one document for the quiz.")
-        progress(0.2, desc="Retrieving material and writing questions")
         quiz = generate_quiz(lib, doc_ids, topic or "", int(n), difficulty=difficulty,
                              exclude_questions=[e["question"] for e in _as_entries(mastered)])
         save_quiz(quiz, lib.dir)
@@ -609,8 +647,11 @@ def build_ui() -> gr.Blocks:
                 groups.append(g); qmds.append(qmd); radios.append(radio); fbs.append(fb); imgs.append(img)
                 finish_outs.append((check, reveal, fb, radio, img))
             quiz_outs = [quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
-            gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs)
-            redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs)
+            # Loading indicator: only our own elapsed-time pill (no Gradio bar or status text).
+            gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs,
+                          show_progress="hidden", js=QUIZ_TIMER_START_JS
+                          ).then(fn=None, js=QUIZ_TIMER_STOP_JS)
+            redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs, show_progress="hidden")
             demo.load(_mastered_md, [mastered], [mastered_md])
             quiz_tab.select(_mastered_md, [mastered], [mastered_md])
 
