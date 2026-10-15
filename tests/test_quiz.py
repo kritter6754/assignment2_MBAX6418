@@ -138,3 +138,83 @@ def test_retry_missed_keeps_only_missed_with_its_own_fixed_key(lib, fake):
     assert load_quiz(retry.quiz_id, lib.dir).answer_key_sha256 == retry.answer_key_sha256
     all_right = {q.qid: q.correct_index for q in quiz.questions}
     assert retry_missed(quiz, all_right) is None
+
+
+OCR_DIAGRAM = ("Pipeline diagram: Documents flow into the Parser, then the Chunker, then the Indexer, "
+               "which feeds the Keyword Index and the Vector Store before Retrieval and Reranking.")
+
+
+def _generic_reply(prefix: str, quote: str, n: int):
+    """Fake model: n valid questions citing the first evidence item whose id starts with prefix."""
+    def reply(messages):
+        parts = [p["text"] for p in messages[1]["content"]
+                 if p.get("type") == "text" and p["text"].startswith(f"[{prefix}")]
+        sid = parts[0].split("]")[0].strip("[")
+        return json.dumps({"questions": [
+            {"question": f"{prefix} question {i} about the shown material?",
+             "options": [f"right {prefix}{i}", f"wrong a{prefix}{i}", f"wrong b{prefix}{i}", f"wrong c{prefix}{i}"],
+             "correct_index": 0, "explanation": "Shown in the material.", "source_id": sid,
+             "quote": quote, "difficulty": "medium"} for i in range(n)]})
+    return reply
+
+
+def _visual_library(tmp_path, fake, pages=3):
+    import pymupdf
+
+    from course_assistant.library import Library
+
+    pdf = tmp_path / "slides.pdf"
+    doc = pymupdf.open()
+    for i in range(pages):
+        doc.new_page().insert_text((72, 72), f"Slide {i + 1}: the retrieval pipeline overview for this course.")
+    doc.save(pdf)
+    fake.ocr_text = OCR_DIAGRAM  # adds diagram words the text layer lacks -> visual_text
+    library = Library(tmp_path / "data", fake)
+    library.add_file(pdf, progress=lambda m: None)
+    return library
+
+
+@pytest.mark.parametrize("n, n_visual", [(5, 1), (10, 2), (1, 1)])
+def test_image_questions_make_up_at_least_20_percent(tmp_path, fake, n, n_visual):
+    library = _visual_library(tmp_path, fake)
+    doc = next(iter(library.docs))
+    assert all(p.visual_text for p in library.pages.values())
+    fake.chat_replies = [_generic_reply("V", "Documents flow into the Parser", n_visual),
+                         _generic_reply("S", "the retrieval pipeline overview", n)]
+    quiz = generate_quiz(library, [doc], n=n, seed=3, include_images=True)
+    visual = [q for q in quiz.questions if q.visual]
+    assert len(visual) >= n_visual and len(visual) / len(quiz.questions) >= 0.2
+    image_call = fake.chat_calls[0]
+    assert "IMAGE QUESTIONS" in image_call[0]["content"]
+    assert any(p.get("type") == "image_url" for p in image_call[1]["content"])  # model sees the slides
+    for q in visual:
+        assert q.source.kind == "image" and q.source.image_path
+    pub = public_questions(quiz)
+    assert all((p["image"] is not None) == q.visual for p, q in zip(pub, quiz.questions))
+
+
+def test_no_images_unless_asked(tmp_path, fake):
+    library = _visual_library(tmp_path, fake)
+    fake.chat_replies = [_generic_reply("S", "the retrieval pipeline overview", 3)]
+    quiz = generate_quiz(library, [next(iter(library.docs))], n=3, seed=1)
+    assert not any(q.visual for q in quiz.questions) and len(fake.chat_calls) == 1
+
+
+def test_image_questions_explain_when_material_has_no_visual_slides(lib, fake):
+    bio = doc_id_by_name(lib, "biology.md")  # Markdown: no slide images at all
+    fake.chat_replies = [_quiz_reply(lib, n=5)]
+    quiz = generate_quiz(lib, [bio], n=5, seed=2, include_images=True)
+    assert not any(q.visual for q in quiz.questions)
+    assert any("image questions could be made" in n for n in quiz.notes)
+
+
+def test_truncated_reply_is_salvaged_and_ids_stripped():
+    from course_assistant.quiz import _salvage_questions, _schema_for, _strip_ids
+
+    raw = ('{"questions": [{"question": "Q one?", "options": ["a","b","c","d"], "correct_index": 0, '
+           '"explanation": "e", "source_id": "V1", "quote": "q"}, {"question": "Q two cut')
+    assert [q["question"] for q in _salvage_questions(raw)] == ["Q one?"]
+    assert _schema_for(3)["properties"]["questions"]["maxItems"] == 3
+    assert _strip_ids("In the chart shown in [V2], which event happened?") == "In the chart shown, which event happened?"
+    assert _strip_ids("Per [S1] the answer is clear (S3).") == "Per the answer is clear."
+    assert _strip_ids("Store it in an S3 bucket with Model V2.") == "Store it in an S3 bucket with Model V2."

@@ -224,6 +224,11 @@ label.selected, .wrap label {{ border-radius: 999px !important; }}
 .q-card p, .q-card strong {{ line-height: 1.5; }}
 .q-actions {{ gap: 10px !important; justify-content: flex-start; }}
 .doc-select-actions {{ gap: 10px !important; justify-content: flex-start; }}
+.img-badge {{
+    display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+    background: var(--color-accent-soft); color: {ACCENT};
+}}
+.dark .img-badge {{ color: {ACCENT_DARK_TEXT}; }}
 .q-slide, .q-slide .image-container, .q-slide .image-frame {{
     border: none !important; background: transparent !important; box-shadow: none !important;
 }}
@@ -537,7 +542,8 @@ def _render_quiz(quiz: Quiz | None, message: str = "", requested: int | None = N
     if quiz is None:
         return ([None, {}, message, ""] + [gr.update(visible=False)] * MAX_Q
                 + [gr.update(value="")] * MAX_Q + [gr.update(choices=[], value=None)] * MAX_Q
-                + [gr.update(value="")] * MAX_Q + [gr.update(value=None, visible=False)] * MAX_Q)
+                + [gr.update(value="")] * MAX_Q + [gr.update(value=None, visible=False)] * MAX_Q
+                + [gr.update(value=None, visible=False)] * MAX_Q)
     pub = public_questions(quiz)  # no answers leave the server here
     if quiz.retry_of:
         header = f"**Retry of quiz `{quiz.retry_of}`**: {len(pub)} missed question(s)"
@@ -546,36 +552,48 @@ def _render_quiz(quiz: Quiz | None, message: str = "", requested: int | None = N
         header += f" · difficulty: *{quiz.difficulty}*"
         if quiz.topic:
             header += f" · topic: *{html.escape(quiz.topic)}*"
+    n_visual = sum(1 for q in quiz.questions if q.visual)
+    if n_visual:
+        header += f" · 🖼️ {n_visual} image question{'s' if n_visual != 1 else ''}"
+    image_note = next((n for n in quiz.notes if "image questions could be made" in n), "")
+    if image_note:
+        header += f"\n\n_{image_note}_"
     if requested and len(pub) < requested:
         header += f"\n\n_{len(pub)} of {requested} requested questions passed validation._"
     if message:
         header += f"\n\n{message}"
-    groups, qmd, radios, fb, imgs = [], [], [], [], []
+    groups, qmd, radios, fb, imgs, figs = [], [], [], [], [], []
     for i in range(MAX_Q):
         if i < len(pub):
             q = pub[i]
             level = quiz.questions[i].difficulty
             tag = f" <small>({level})</small>" if level else ""
+            badge = '<span class="img-badge">🖼️ Image question: look at the slide below</span>\n\n' \
+                if q.get("image") else ""
             groups.append(gr.update(visible=True))
-            qmd.append(gr.update(value=f"**Q{i + 1}. {html.escape(q['question'])}**{tag}"))
+            qmd.append(gr.update(value=f"{badge}**Q{i + 1}. {html.escape(q['question'])}**{tag}"))
+            figs.append(gr.update(value=q["image"], visible=True) if q.get("image")
+                        else gr.update(value=None, visible=False))
             radios.append(gr.update(choices=[f"{LETTERS[j]}. {o}" for j, o in enumerate(q["options"])],
                                     value=None, interactive=True))
         else:
             groups.append(gr.update(visible=False))
             qmd.append(gr.update(value=""))
             radios.append(gr.update(choices=[], value=None))
+            figs.append(gr.update(value=None, visible=False))
         fb.append(gr.update(value=""))
         imgs.append(gr.update(value=None, visible=False))
-    return [quiz.quiz_id, {}, header, _score_md(quiz, {})] + groups + qmd + radios + fb + imgs
+    return [quiz.quiz_id, {}, header, _score_md(quiz, {})] + groups + qmd + radios + fb + imgs + figs
 
 
-def make_quiz(doc_ids, topic, difficulty, n, mastered):
+def make_quiz(doc_ids, topic, difficulty, n, mastered, include_images=False):
     lib = get_library()
     try:
         if not doc_ids:
             raise ValueError("Choose at least one document for the quiz.")
         quiz = generate_quiz(lib, doc_ids, topic or "", int(n), difficulty=difficulty,
-                             exclude_questions=[e["question"] for e in _as_entries(mastered)])
+                             exclude_questions=[e["question"] for e in _as_entries(mastered)],
+                             include_images=bool(include_images))
         save_quiz(quiz, lib.dir)
     except Exception as e:
         log.exception("quiz failed")
@@ -586,13 +604,13 @@ def make_quiz(doc_ids, topic, difficulty, n, mastered):
 def redo_missed(quiz_id, progress):
     quiz = _quiz(quiz_id)
     if quiz is None:
-        return [gr.update()] * 4 + [gr.update()] * (5 * MAX_Q)
+        return [gr.update()] * 4 + [gr.update()] * (6 * MAX_Q)
     responses = {qid: p.get("chosen") for qid, p in (progress or {}).items()}
     retry = retry_missed(quiz, responses)
     if retry is None:
         return [gr.update(), gr.update(), gr.update(), _score_md(quiz, progress or {})
                 + '<p class="score-note">🎉 Nothing to retry: every question was answered correctly.</p>'] + \
-            [gr.update()] * (5 * MAX_Q)
+            [gr.update()] * (6 * MAX_Q)
     save_quiz(retry, get_library().dir)
     return _render_quiz(retry)
 
@@ -630,7 +648,7 @@ def _finish(i: int, quiz_id, progress: dict, choice: str | None, reveal: bool,
         missed = _without(missed, q.question)
     else:
         missed = _upsert(missed, _entry(q, chosen))
-    img = gr.update(value=q.source.image_path, visible=bool(q.source.image_path),
+    img = gr.update(value=q.source.image_path, visible=bool(q.source.image_path) and not q.visual,
                     label=f"{q.source.doc_name} — {q.source.location}")
     return (progress, _feedback_md(quiz, i, chosen), gr.update(interactive=False), img,
             _score_md(quiz, progress), mastered, _mastered_md(mastered), missed, *_prior_views(missed, mastered))
@@ -684,17 +702,21 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                     difficulty = gr.Radio(choices=[("Mixed", "mixed"), ("Easy", "easy"), ("Medium", "medium"),
                                                    ("Hard", "hard")], value="mixed", label="Difficulty")
                     n_q = gr.Slider(1, MAX_Q, value=5, step=1, label="Number of questions")
+                    with_images = gr.Checkbox(value=False, label="Produce questions with viewable images "
+                                              "(at least 20% of the quiz asks about a slide image)")
                     gen_btn = gr.Button("Generate quiz", variant="primary")
                     redo_btn = gr.Button("Retry missed questions", size="sm")
                     mastered_md = gr.Markdown(_mastered_md([]))
             with gr.Column(elem_classes=["card", "quiz-summary"]):
                 quiz_header = gr.Markdown("_Choose material and press **Generate quiz** to start._")
                 score_md = gr.HTML()
-            groups, qmds, radios, fbs, imgs = [], [], [], [], []
+            groups, qmds, radios, fbs, imgs, figs = [], [], [], [], [], []
             finish_outs = []
             for i in range(MAX_Q):
                 with gr.Column(visible=False, elem_classes=["card", "q-card"]) as g:
                     qmd = gr.Markdown(elem_classes=["q-title"])
+                    fig = gr.Image(visible=False, interactive=False, height=380, show_label=False,
+                                   elem_classes=["q-slide", "q-figure"])
                     radio = gr.Radio(choices=[], label="Your answer")
                     with gr.Row(elem_classes=["q-actions"]):
                         check = gr.Button("Check answer", size="sm", variant="primary", scale=0, min_width=150)
@@ -703,10 +725,12 @@ def build_ui(read_only: bool = False, edit_password: str | None = None) -> gr.Bl
                     img = gr.Image(visible=False, interactive=False, height=340, show_label=False,
                                    elem_classes=["q-slide"])
                 groups.append(g); qmds.append(qmd); radios.append(radio); fbs.append(fb); imgs.append(img)
+                figs.append(fig)
                 finish_outs.append((check, reveal, fb, radio, img))
-            quiz_outs = [quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
+            quiz_outs = ([quiz_id, quiz_progress, quiz_header, score_md] + groups + qmds + radios + fbs + imgs
+                         + figs)
             # Loading indicator: only our own elapsed-time pill (no Gradio bar or status text).
-            gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered], quiz_outs,
+            gen_btn.click(make_quiz, [quiz_docs, topic, difficulty, n_q, mastered, with_images], quiz_outs,
                           show_progress="hidden", js=QUIZ_TIMER_START_JS
                           ).then(fn=None, js=TIMER_STOP_JS)
             redo_btn.click(redo_missed, [quiz_id, quiz_progress], quiz_outs, show_progress="hidden")

@@ -31,6 +31,7 @@ Under the hood it uses **hybrid RAG** (retrieval-augmented generation: find rele
 |---|---|
 | **Ask** | Ask a question about all documents or just the ones they pick. They get a short answer with `[S1]`-style markers. Each cited source shows the document, the slide/page, the quoted excerpt, and the original slide image. If the answer isn't in the materials, the app says it couldn't find it. |
 | **Quiz** | Pick documents, optionally add a topic filter (e.g. "KV cache"), and choose 1–10 questions. Each multiple-choice question has 4 options. Solutions stay hidden until the student clicks **Check answer** or **Show solution**. The student then sees right or wrong, an explanation, the source excerpt, and the source slide image, with a running score. |
+| **Image questions** | Tick *Produce questions with viewable images* on the Quiz tab and at least 20% of the questions (rounded up) are about a slide image: a diagram, chart, table or screenshot. The image is shown with the question. These questions come from slides whose content is mainly visual, and they must quote a label that actually appears on the image. |
 | **Library** | Upload files, see which formats are accepted and why a file was rejected, remove documents, and browse any page or slide to see the original image next to the text that was extracted from it. |
 
 | Quiz feedback | Library browser |
@@ -249,6 +250,7 @@ Rows 1–3 were recorded from development runs; only the final run is saved in `
 - **Multiple users at once, very large libraries (thousands of pages), Windows, and accessibility.**
 
 ## Limitations
+- **Image questions check their quotes, not their reasoning.** The app verifies that the label an image question cites appears on the slide, but the model can still misread a diagram, for example claiming two shapes don't overlap when they do. Some decks have few visual slides, so their image questions may reuse the same slide.
 - **Embedded videos** in slides render as blank frames (e.g. Week 2, slide 37), so their content can't be searched.
 - **OCR text is used for search and for verifying quotes, but OCR can misread.** Answers that rely on OCR'd text or on a diagram show the original image, so students can check them.
 - **"Visual evidence" sources** are labelled *"Model's reading of the image"* when the model describes a diagram instead of quoting it. Those depend on the LLM support check rather than an exact text match.

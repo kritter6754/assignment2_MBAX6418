@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
+import re
 import time
 import uuid
 from pathlib import Path
@@ -58,6 +60,8 @@ For each question:
 - "source_id": the evidence id that supports the answer; "quote": a short passage (under 300 characters) copied word for word from that evidence's text.
 - "difficulty": "easy", "medium" or "hard" (see below).
 - Don't use "All of the above" or "None of the above". Don't repeat questions.
+- Never mention evidence ids such as [S1] or [V2] in the question, options or explanation.
+- Write exactly the number of questions asked for, no more.
 
 Difficulty levels (every question, even a hard one, must be answerable from the evidence alone):
 - easy: recall one fact or definition stated directly in the evidence; wrong options are clearly wrong.
@@ -66,7 +70,15 @@ Difficulty levels (every question, even a hard one, must be answerable from the 
 
 Return JSON: {"questions": [...]}"""
 
+VISUAL_INSTRUCTIONS = """These questions are IMAGE QUESTIONS: the student will see the slide image next to the question and must look at it to answer.
+- Use only the provided page images (diagrams, charts, tables, screenshots, figures). Base each question on what the image shows: labels, arrows, the order of steps, values, highlighted parts, how elements relate.
+- Phrase it so the image is needed, e.g. "In the diagram shown, ...", "According to the chart shown, ...", "In the table shown, ...". It must not be answerable from general knowledge alone.
+- "source_id" is the image's id; "quote" is ONE label, title, value or phrase that appears on that image, copied exactly. Never join two separate labels into one quote.
+- Use a different image for each question when possible."""
+
 DIFFICULTIES = ("mixed", "easy", "medium", "hard")
+MIN_VISUAL_SHARE = 0.2  # with image questions on, at least 20% of the quiz
+VISUAL_QUERY = "diagram, chart, graph, table, screenshot, figure or illustration"
 
 
 class QuizQuestion(BaseModel):
@@ -77,6 +89,7 @@ class QuizQuestion(BaseModel):
     explanation: str
     source: SourceRef
     difficulty: str = ""  # easy / medium / hard, as labelled by the model
+    visual: bool = False  # image question: the slide image is shown with the question
 
 
 class Quiz(BaseModel):
@@ -164,11 +177,131 @@ def _shuffle(q: _RawQ, rng: random.Random) -> tuple[list[str], int]:
     return [q.options[i] for i in order], order.index(q.correct_index)
 
 
+def _schema_for(n: int) -> dict:
+    """QUIZ_SCHEMA limited to exactly n questions (stops the model writing extra ones and
+    running out of output tokens mid-JSON)."""
+    schema = json.loads(json.dumps(QUIZ_SCHEMA))
+    schema["properties"]["questions"].update({"minItems": n, "maxItems": n})
+    return schema
+
+
+def _salvage_questions(raw: str) -> list[dict]:
+    """Complete question objects from a reply that was cut off mid-JSON."""
+    out = []
+    for m in re.finditer(r"\{[^{}]*\"question\"[^{}]*\}", raw, flags=re.S):
+        try:
+            out.append(json.loads(m.group(0)))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+# Only bracketed/parenthesised ids ("[V2]", "(S3)"), so text like "S3 bucket" or "Model V2" stays.
+_ID_MENTION = re.compile(r"\s*(?:(?:in|from|of) )?[\[(][SV]\d+[\])]")
+
+
+def _strip_ids(text: str) -> str:
+    """Remove stray evidence ids like "[V2]" or "in S3" from model-written text."""
+    return re.sub(r"\s{2,}", " ", _ID_MENTION.sub("", text)).strip()
+
+
+def visual_evidence(lib: Library, doc_ids: list[str], topic: str, k: int, seed: int) -> list[Evidence]:
+    """Slides whose content is mainly visual, as image evidence (up to k).
+
+    First choice: slides whose image holds text the text layer lacks (diagram labels, table
+    screenshots, charts) or that are image-only. Then slides the image index ranks as
+    diagram/chart-like (for the topic, if one is given)."""
+    pages = [p for d in doc_ids for p in lib.doc_pages(d)]
+    flagged = [p for p in pages if p.image_path and (len(p.visual_text) >= 80 or (p.ocr and len(p.text) >= 120))]
+    ranked = [lib.pages[i] for i, _ in lib.search_images(f"{topic} {VISUAL_QUERY}".strip(), 12, doc_ids)]
+    if topic:
+        # the images that best match the topic, visual slides first (diagrams whose labels the
+        # OCR pass didn't flag, e.g. pipeline figures, still rank high here)
+        picked = [p for p in ranked[:6] if p in flagged] + [p for p in ranked[:6] if p not in flagged]
+    else:
+        picked = random.Random(seed).sample(flagged, len(flagged))
+    if len(picked) < 2:  # very few visual slides: fall back to the most diagram-like images
+        picked += [p for p in ranked if p not in picked][: 3 - len(picked)]
+    out, seen = [], set()
+    for p in picked:
+        if p.page_id in seen or not p.image_path:
+            continue
+        seen.add(p.page_id)
+        out.append(Evidence(f"V{len(out) + 1}", "image", p, None, 0.0))
+        if len(out) >= k:
+            break
+    return out
+
+
+def _write_questions(lib: Library, evidence: list[Evidence], need: int, topic: str, difficulty: str,
+                     avoid: list[str], excluded: set[str], seen_q: set[str], notes: list[str],
+                     visual: bool, attempts: int = 2) -> list[tuple["_RawQ", Evidence]]:
+    """Ask the model for `need` questions from `evidence`, validate them. Later attempts only
+    top up the missing ones."""
+    accepted: list[tuple[_RawQ, Evidence]] = []
+    rejected: list[str] = []  # fed back to the model on the next attempt
+    by_id = {e.eid: e for e in evidence}
+    for attempt in range(attempts):
+        left = need - len(accepted)
+        if left <= 0:
+            break
+        ask = f"Write {left} questions" + (f" about: {topic}" if topic else " covering different evidence items")
+        ask += (". Use a mix of easy, medium and hard questions" if difficulty == "mixed"
+                else f". Every question must be {difficulty}")
+        avoid_now = [q.question for q, _ in accepted] + avoid
+        if rejected:
+            ask += (". Some earlier questions were rejected: " + "; ".join(rejected[-3:])
+                    + f". Quote exactly one {'label or phrase that appears on the cited image' if visual else 'passage from the cited evidence'}")
+        if avoid_now:
+            ask += (". The student has already answered these correctly or seen them; do not ask them "
+                    "again or ask the same thing in other words: " + " | ".join(avoid_now[-40:]))
+        system = QUIZ_PROMPT + ("\n\n" + VISUAL_INSTRUCTIONS if visual else "")
+        content = [{"type": "text", "text": "Evidence from the course materials:"}]
+        content += evidence_messages(evidence, image_max_side=1024 if visual else 896)
+        content.append({"type": "text", "text": ask + "."})
+        raw = lib.services.chat([{"role": "system", "content": system}, {"role": "user", "content": content}],
+                                schema=_schema_for(left), max_tokens=1200 * left + 800)
+        try:
+            items = extract_json(raw).get("questions", [])
+        except (json.JSONDecodeError, AttributeError):
+            items = _salvage_questions(raw)
+            if not items:
+                notes.append(f"Attempt {attempt + 1}: model output was not valid JSON.")
+                continue
+        for item in items:
+            if isinstance(item, dict):
+                for field in ("question", "explanation"):
+                    if isinstance(item.get(field), str):
+                        item[field] = _strip_ids(item[field])
+        for item in items:
+            q, why = validate_question(item, evidence, lambda qt, e: lib.quote_on_page(qt, e.page, e.text))
+            if q is None:
+                notes.append(f"Rejected a generated {'image ' if visual else ''}question: {why}.")
+                if isinstance(item, dict) and "quote" in why:
+                    rejected.append(f"the quote '{str(item.get('quote', ''))[:80]}' does not appear on "
+                                    f"{item.get('source_id', '')}")
+                continue
+            if visual and by_id[q.source_id.strip("[] ")].kind != "image":
+                notes.append("Rejected an image question that did not cite an image.")
+                continue
+            key = normalize(q.question)
+            if key in seen_q or key in excluded:
+                continue
+            if difficulty != "mixed":
+                q.difficulty = difficulty
+            seen_q.add(key)
+            accepted.append((q, by_id[q.source_id.strip("[] ")]))
+            if len(accepted) >= need:
+                break
+    return accepted
+
+
 def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
                   seed: int | None = None, difficulty: str = "mixed",
-                  exclude_questions: list[str] | None = None) -> Quiz:
+                  exclude_questions: list[str] | None = None, include_images: bool = False) -> Quiz:
     """`difficulty` is mixed/easy/medium/hard. `exclude_questions` are questions the
-    student has already mastered; they are not asked again."""
+    student has already mastered; they are not asked again. With `include_images`, at least
+    20% of the questions (rounded up) are image questions built from visual slides."""
     if not doc_ids:
         raise ValueError("Choose at least one document.")
     difficulty = (difficulty or "mixed").strip().lower()
@@ -187,55 +320,38 @@ def generate_quiz(lib: Library, doc_ids: list[str], topic: str = "", n: int = 5,
         raise ValueError("No usable content found in the selected documents"
                          + (f" for topic '{topic}'." if topic else "."))
 
-    accepted: list[tuple[_RawQ, Evidence]] = []
     notes: list[str] = []
     seen_q: set[str] = set()
-    for attempt in range(2):  # second attempt only tops up missing questions
-        need = n - len(accepted)
-        if need <= 0:
-            break
-        ask = f"Write {need} questions" + (f" about: {topic}" if topic else " covering different evidence items")
-        ask += (". Use a mix of easy, medium and hard questions" if difficulty == "mixed"
-                else f". Every question must be {difficulty}")
-        avoid = [q.question for q, _ in accepted] + list(exclude_questions or [])[-40:]
-        if avoid:
-            ask += (". The student has already answered these correctly or seen them; do not ask them "
-                    "again or ask the same thing in other words: " + " | ".join(avoid))
-        content = [{"type": "text", "text": "Evidence from the course materials:"}]
-        content += evidence_messages(evidence, image_max_side=896)
-        content.append({"type": "text", "text": ask + "."})
-        raw = lib.services.chat([{"role": "system", "content": QUIZ_PROMPT},
-                                 {"role": "user", "content": content}],
-                                schema=QUIZ_SCHEMA, max_tokens=900 * need + 500)
-        try:
-            items = extract_json(raw).get("questions", [])
-        except (json.JSONDecodeError, AttributeError):
-            notes.append(f"Attempt {attempt + 1}: model output was not valid JSON.")
-            continue
-        by_id = {e.eid: e for e in evidence}
-        for item in items:
-            q, why = validate_question(item, evidence, lambda qt, e: lib.quote_on_page(qt, e.page, e.text))
-            if q is None:
-                notes.append(f"Rejected a generated question: {why}.")
-                continue
-            if normalize(q.question) in seen_q or normalize(q.question) in excluded:
-                continue
-            if difficulty != "mixed":
-                q.difficulty = difficulty
-            seen_q.add(normalize(q.question))
-            accepted.append((q, by_id[q.source_id.strip("[] ")]))
-            if len(accepted) >= n:
-                break
+    avoid = list(exclude_questions or [])
+
+    # 1. Image questions first, so the 20% minimum is met before text questions fill the rest.
+    visual: list[tuple[_RawQ, Evidence]] = []
+    n_visual = math.ceil(n * MIN_VISUAL_SHARE) if include_images else 0
+    if n_visual:
+        pool = visual_evidence(lib, doc_ids, topic, k=min(5, n_visual + 2), seed=seed)  # ≤5 images per request
+        if pool:
+            visual = _write_questions(lib, pool, n_visual, topic, difficulty, avoid, excluded, seen_q,
+                                      notes, visual=True, attempts=3)
+        if len(visual) < n_visual:
+            notes.append(f"Only {len(visual)} of {n_visual} image questions could be made from the visual "
+                         "slides in this material.")
+
+    # 2. Text questions for the rest.
+    text = _write_questions(lib, evidence, n - len(visual), topic, difficulty,
+                            avoid + [q.question for q, _ in visual], excluded, seen_q, notes, visual=False)
+    accepted = [(q, ev, True) for q, ev in visual] + [(q, ev, False) for q, ev in text]
     if not accepted:
         raise ServiceError("Could not generate valid questions from these materials. Try another topic.")
 
     rng = random.Random(seed)
+    rng.shuffle(accepted)  # spread image questions through the quiz
     questions = []
-    for i, (q, ev) in enumerate(accepted, start=1):
+    for i, (q, ev, is_visual) in enumerate(accepted, start=1):
         options, correct = _shuffle(q, rng)
         questions.append(QuizQuestion(
             qid=f"q{i}", question=q.question.strip(), options=[o.strip() for o in options],
             correct_index=correct, explanation=q.explanation.strip(), difficulty=q.difficulty,
+            visual=is_visual,
             source=SourceRef(eid=ev.eid, doc_name=ev.page.doc_name, location=ev.page.label,
                              page_id=ev.page_id, excerpt=q.quote.strip(),
                              image_path=ev.page.image_path, kind=ev.kind)))
@@ -280,8 +396,10 @@ def load_quiz(quiz_id: str, data_dir: Path) -> Quiz:
 
 # -- what the student sees ----------------------------------------------------
 def public_questions(quiz: Quiz) -> list[dict]:
-    """Questions and options only: no correct answer, explanation or source."""
-    return [{"qid": q.qid, "question": q.question, "options": list(q.options)} for q in quiz.questions]
+    """Questions and options only: no correct answer, explanation or source. Image questions
+    also carry the slide image the student needs to look at."""
+    return [{"qid": q.qid, "question": q.question, "options": list(q.options),
+             "image": q.source.image_path if q.visual else None} for q in quiz.questions]
 
 
 def grade(quiz: Quiz, responses: dict[str, int | None]) -> GradeResult:
